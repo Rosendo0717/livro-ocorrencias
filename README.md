@@ -5,14 +5,14 @@ Roda em Google Planilhas + Apps Script: a planilha é a base de dados e o Apps S
 
 ## Arquivos
 
-- `Codigo.gs` — servidor (escala, lançamentos, pendências, envio de e-mail, área do administrador)
-- `docs/index.html` — página do GitHub Pages que só redireciona para o link do sistema no Google (se o link da implantação mudar, atualize aqui)
-- `Index.html` — tela do tablet (aberta fora do Google, roda em modo demonstração; senha do administrador na demonstração: `demo123`)
+- `apps-script/Codigo.gs` — servidor (escala, lançamentos, pendências, envio de e-mail, área do administrador)
+- `index.html` (e a cópia em `docs/index.html`) — página do GitHub Pages que só redireciona para o link do sistema no Google (se o link da implantação mudar, atualize aqui)
+- `apps-script/Index.html` — tela do tablet (aberta fora do Google, roda em modo demonstração; senha do administrador na demonstração: `demo123`)
 
 ## Instalação
 
 1. Crie uma Planilha Google em branco e abra **Extensões → Apps Script**.
-2. Cole o `Codigo.gs` no arquivo `Código.gs`. Crie um arquivo HTML chamado `Index` e cole o `Index.html`.
+2. Cole o `apps-script/Codigo.gs` no arquivo `Código.gs`. Crie um arquivo HTML chamado `Index` e cole o `apps-script/Index.html`.
 3. Execute a função `setup` (ou recarregue a planilha e use o menu **Livro de Ocorrências → 1. Configuração inicial**). Ela cria as abas, liga o envio automático e pede a senha do administrador.
 4. Preencha a aba **Cadastro** e os e-mails dos líderes em **Config**.
 5. **Implantar → Nova implantação → App da Web** (Executar como: Eu; Acesso: Qualquer pessoa).
