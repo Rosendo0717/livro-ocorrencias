@@ -6,6 +6,7 @@ Roda em Google Planilhas + Apps Script: a planilha é a base de dados e o Apps S
 ## Arquivos
 
 - `Codigo.gs` — servidor (escala, lançamentos, pendências, envio de e-mail, área do administrador)
+- `docs/index.html` — página do GitHub Pages que só redireciona para o link do sistema no Google (se o link da implantação mudar, atualize aqui)
 - `Index.html` — tela do tablet (aberta fora do Google, roda em modo demonstração; senha do administrador na demonstração: `demo123`)
 
 ## Instalação
