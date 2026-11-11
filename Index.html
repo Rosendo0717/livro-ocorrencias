@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --azul:#0032A0; --verde:#00B5AD; --azul-medio:#1996DC;
+    --ok:#00A651; --and:#FFDE1A; --pen:#E53935;
+    --fundo:#EEF2F8; --borda:#D5DCE8; --texto:#1a1a1a; --suave:#5b6577;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;font-family:'Noto Sans',Verdana,sans-serif;background:var(--fundo);color:var(--texto)}
+  button{font-family:inherit;cursor:pointer;border:0}
+  .oculto{display:none!important}
+
+  /* ---------- LOGIN ---------- */
+  #telaLogin{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;
+    background:linear-gradient(160deg,var(--azul) 0%,#00267a 60%,var(--azul-medio) 130%);color:#fff}
+  .marca{font-weight:700;letter-spacing:.5px;opacity:.9;font-size:15px}
+  #telaLogin h1{font-size:26px;margin:6px 0 4px;text-align:center}
+  #telaLogin .sub{opacity:.85;margin-bottom:22px}
+  .visor{background:#fff;color:var(--azul);border-radius:14px;width:340px;max-width:90vw;height:72px;display:flex;
+    align-items:center;justify-content:center;font-size:36px;font-weight:700;letter-spacing:4px}
+  .visor .ph{color:#9aa6bf;font-size:20px;letter-spacing:0;font-weight:400}
+  .teclado{display:grid;grid-template-columns:repeat(3,104px);gap:12px;margin-top:18px}
+  .teclado button{height:74px;border-radius:14px;font-size:30px;font-weight:600;background:rgba(255,255,255,.14);color:#fff}
+  .teclado button:active{background:rgba(255,255,255,.3)}
+  .teclado .entrar{background:var(--verde);font-size:20px}
+  .teclado .apagar{font-size:20px}
+  #msgLogin{min-height:26px;margin-top:14px;font-weight:600;color:#FFDE1A;text-align:center}
+
+  /* ---------- PRINCIPAL ---------- */
+  header{background:var(--azul);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+  header .quem{flex:1;min-width:200px}
+  header .quem b{font-size:19px;display:block}
+  header .quem span{font-size:13px;opacity:.85}
+  .turnos{display:flex;gap:6px}
+  .turnos button{background:rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:8px 14px;font-size:15px;font-weight:700;line-height:1.1}
+  .turnos button small{display:block;font-size:11px;font-weight:400;opacity:.8}
+  .turnos button.ativo{background:var(--verde)}
+  .sair{background:#fff;color:var(--azul);border-radius:10px;padding:10px 16px;font-weight:700}
+  .aviso{margin:12px 18px 0;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:600}
+  .aviso.amarelo{background:#FFF6C2;border-left:6px solid var(--and)}
+  .aviso.azul{background:#E3F0FB;border-left:6px solid var(--azul-medio)}
+  nav{display:flex;gap:8px;padding:14px 18px 0}
+  nav button{flex:1;padding:14px 8px;border-radius:12px 12px 0 0;background:#dfe5ef;color:var(--suave);font-weight:700;font-size:15px}
+  nav button.ativo{background:#fff;color:var(--azul)}
+  nav .bolha{display:inline-block;min-width:22px;padding:1px 7px;border-radius:11px;background:var(--pen);color:#fff;font-size:12px;margin-left:4px}
+  main{background:#fff;margin:0 18px 30px;border-radius:0 0 14px 14px;padding:14px;min-height:300px}
+  .barraNova{padding:0 0 12px}
+  .barraNova button{width:100%;background:var(--verde);color:#fff;font-size:19px;font-weight:700;padding:18px;border-radius:12px}
+  .vazio{color:var(--suave);text-align:center;padding:40px 10px}
+  .grupo{font-weight:700;color:var(--azul);margin:14px 4px 6px;font-size:14px;border-bottom:2px solid var(--fundo);padding-bottom:4px}
+  .item{display:flex;gap:12px;align-items:stretch;border:1px solid var(--borda);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .item .hora{min-width:70px;text-align:center;font-weight:700;color:var(--azul);font-size:15px;display:flex;flex-direction:column;justify-content:center}
+  .item .hora small{color:var(--suave);font-weight:400}
+  .item .corpo{flex:1;min-width:0}
+  .item .txt{font-weight:600;font-size:15px;word-wrap:break-word}
+  .item .det{font-size:13px;color:var(--suave);margin-top:3px}
+  .item .det b{color:var(--texto)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;margin-right:6px}
+  .p-CONCLUIDO{background:var(--ok);color:#fff}.p-ANDAMENTO{background:var(--and);color:#000}.p-PENDENTE{background:var(--pen);color:#fff}
+  .acoes{display:flex;flex-direction:column;gap:6px;justify-content:center}
+  .acoes button{padding:9px 14px;border-radius:9px;font-weight:700;font-size:13px;background:var(--fundo);color:var(--azul)}
+  .acoes .fin{background:var(--verde);color:#fff}
+  .dias{font-size:22px;font-weight:700;text-align:center;min-width:60px;display:flex;flex-direction:column;justify-content:center}
+  .dias small{font-size:11px;font-weight:400;color:var(--suave)}
+
+  /* ---------- MODAL ---------- */
+  .fundoModal{position:fixed;inset:0;background:rgba(0,20,60,.55);display:flex;align-items:flex-start;justify-content:center;z-index:20;overflow:auto;padding:24px 12px}
+  .modal{background:#fff;border-radius:16px;width:720px;max-width:100%;padding:20px 22px}
+  .modal h2{margin:0 0 4px;color:var(--azul);font-size:21px}
+  .modal .ctx{color:var(--suave);font-size:13px;margin-bottom:12px}
+  label{display:block;font-weight:700;font-size:13px;color:var(--suave);margin:12px 0 5px}
+  textarea,input{width:100%;font-family:inherit;font-size:17px;padding:12px;border:2px solid var(--borda);border-radius:10px;text-transform:uppercase}
+  textarea:focus,input:focus{outline:none;border-color:var(--azul-medio)}
+  textarea{min-height:92px;resize:vertical}
+  .linha{display:flex;gap:12px}.linha>div{flex:1}
+  .hrs{display:flex;gap:6px}.hrs input{flex:1}
+  .hrs button{background:var(--fundo);color:var(--azul);font-weight:700;border-radius:10px;padding:0 14px}
+  .status{display:flex;gap:8px}
+  .status button{flex:1;padding:16px 6px;border-radius:10px;font-weight:700;font-size:15px;border:3px solid transparent;opacity:.45}
+  .status button.sel{opacity:1;border-color:#0b1d4d}
+  .s-CONCLUIDO{background:var(--ok);color:#fff}.s-ANDAMENTO{background:var(--and);color:#000}.s-PENDENTE{background:var(--pen);color:#fff}
+  .botoes{display:flex;gap:10px;margin-top:20px}
+  .botoes button{flex:1;padding:16px;border-radius:12px;font-size:17px;font-weight:700}
+  .b-sec{background:var(--fundo);color:var(--azul)}
+  .b-pri{background:var(--azul);color:#fff}
+  .b-del{background:#fdecea;color:var(--pen);flex:0 0 auto!important}
+  .erro{color:var(--pen);font-weight:700;margin-top:10px;min-height:20px}
+  .alerta{background:#FFF6C2;border-radius:8px;padding:8px 10px;font-size:13px;font-weight:600;margin-top:10px}
+  .ref{background:var(--fundo);border-radius:10px;padding:10px 12px;font-size:14px}
+
+  #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#0b1d4d;color:#fff;padding:12px 20px;border-radius:10px;
+    font-weight:600;z-index:30;opacity:0;transition:opacity .25s;pointer-events:none}
+  #toast.on{opacity:1}
+  #carregando{position:fixed;inset:0;background:rgba(255,255,255,.55);z-index:40;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--azul);font-size:18px}
+  /* ---------- ADMIN ---------- */
+  .linkAdmin{margin-top:26px;background:transparent;color:#fff;opacity:.7;font-weight:700;font-size:13px;letter-spacing:1px;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:8px 14px}
+  header.adm{background:#0b1d4d}
+  #navAdm button{font-size:14px}
+  .filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+  .filtros label{margin:0 0 4px}
+  .filtros input,.filtros select{width:auto;font-size:16px;padding:10px;border:2px solid var(--borda);border-radius:10px;font-family:inherit}
+  .bt{padding:12px 18px;border-radius:10px;font-weight:700;font-size:15px;background:var(--azul);color:#fff}
+  .bt.sec{background:var(--fundo);color:var(--azul)}
+  .bt.verde{background:var(--verde)}
+  .bt.perigo{background:var(--pen)}
+  .bt.mini{padding:8px 12px;font-size:13px}
+  .resumo{background:var(--fundo);border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:12px}
+  .chip{display:inline-block;background:#fdecea;color:var(--pen);border-radius:8px;padding:3px 9px;margin:2px;font-size:12px;font-weight:700}
+  .tabela{width:100%;border-collapse:collapse;font-size:14px}
+  .tabela th{background:var(--azul);color:#fff;padding:9px 8px;text-align:left;font-size:13px}
+  .tabela td{border-bottom:1px solid var(--borda);padding:9px 8px;vertical-align:middle}
+  .tabela tr.inativo td{color:#9aa6bf}
+  .escala{border-collapse:collapse;font-size:12px}
+  .escala th,.escala td{border:1px solid var(--borda);padding:5px 4px;text-align:center;min-width:34px}
+  .escala th{background:var(--azul);color:#fff;font-weight:600}
+  .escala td.nome{text-align:left;white-space:nowrap;font-weight:600;padding:5px 8px;position:sticky;left:0;background:#fff}
+  .escala th.fds{background:#00267a}
+  .t-A{background:#1996DC;color:#fff;font-weight:700}.t-B{background:#0032A0;color:#fff;font-weight:700}
+  .t-C{background:#7F5CFA;color:#fff;font-weight:700}.t-D{background:#00B5AD;color:#fff;font-weight:700}.t-F{background:#E7EBF2;color:#8a94a8}
+  .t-exc{outline:3px solid #FF9421;outline-offset:-3px}
+  .rolagem{overflow-x:auto;margin-bottom:10px}
+  .legenda span{display:inline-block;padding:3px 9px;border-radius:6px;margin-right:6px;font-size:12px}
+  .previa{width:100%;height:640px;border:1px solid var(--borda);border-radius:10px;background:#fff}
+  .secao{font-weight:700;color:var(--azul);font-size:16px;margin:22px 0 10px}
+  .cfg{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
+  .cfg input,.cfg select{text-transform:none}
+  .opcoes{display:flex;gap:8px;flex-wrap:wrap}
+  .opcoes button{flex:1;padding:14px 8px;border-radius:10px;font-weight:700;background:var(--fundo);color:var(--azul);border:3px solid transparent}
+  .opcoes button.sel{border-color:var(--azul)}
+  select{font-family:inherit;font-size:17px;padding:12px;border:2px solid var(--borda);border-radius:10px;width:100%;background:#fff}
+  .eq{display:inline-block;background:#E3F0FB;color:var(--azul);border-radius:6px;padding:1px 8px;margin-right:8px;font-size:13px;font-weight:700}
+  .trava{font-size:12px;font-weight:700;color:var(--suave);background:var(--fundo);border-radius:9px;padding:9px 12px;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="telaLogin">
+  <div class="marca">LINS AGROINDUSTRIAL</div>
+  <h1>Livro de Ocorrências de Turno</h1>
+  <div class="sub">Manutenção Elétrica · digite o número do seu crachá</div>
+  <div class="visor" id="visor"><span class="ph">Nº do crachá</span></div>
+  <div class="teclado" id="teclado"></div>
+  <div id="msgLogin"></div>
+  <button class="linkAdmin" onclick="abrirSenha()">ADMINISTRADOR</button>
+</section>
+
+<!-- ============ ADMIN ============ -->
+<section id="telaAdmin" class="oculto">
+  <header class="adm">
+    <div class="quem"><b>Administrador</b><span>Livro de Ocorrências · Manutenção Elétrica</span></div>
+    <button class="sair" onclick="sair()">SAIR</button>
+  </header>
+  <nav id="navAdm">
+    <button data-aba="lanc" onclick="admAba('lanc')">LANÇAMENTOS</button>
+    <button data-aba="func" onclick="admAba('func')">FUNCIONÁRIOS</button>
+    <button data-aba="escala" onclick="admAba('escala')">ESCALA</button>
+    <button data-aba="rel" onclick="admAba('rel')">RELATÓRIOS</button>
+    <button data-aba="cfg" onclick="admAba('cfg')">CONFIGURAÇÕES</button>
+  </nav>
+  <main id="admConteudo"></main>
+</section>
+
+<!-- ============ PRINCIPAL ============ -->
+<section id="telaPrincipal" class="oculto">
+  <header>
+    <div class="quem"><b id="hNome"></b><span id="hInfo"></span></div>
+    <div class="turnos" id="hTurnos"></div>
+    <button class="sair" onclick="sair()">SAIR</button>
+  </header>
+  <div id="avisos"></div>
+  <nav>
+    <button data-aba="minhas" class="ativo" onclick="trocarAba('minhas')">MEUS LANÇAMENTOS</button>
+    <button data-aba="equipe" onclick="trocarAba('equipe')">TURNO (EQUIPE)</button>
+    <button data-aba="pend" onclick="trocarAba('pend')">PENDÊNCIAS <span class="bolha" id="qtdPend">0</span></button>
+  </nav>
+  <main><div class="barraNova"><button onclick="novaOcorrencia()">+ NOVA OCORRÊNCIA</button></div><div id="conteudo"></div></main>
+</section>
+
+<!-- ============ MODAL OCORRÊNCIA ============ -->
+<div class="fundoModal oculto" id="mOco">
+  <div class="modal">
+    <h2 id="fTitulo">Nova ocorrência</h2>
+    <div class="ctx" id="fCtx"></div>
+    <div id="boxPessoa" class="oculto"><label>ELETRICISTA</label><select id="fPessoa"></select></div>
+    <label>EQUIPAMENTO / TAG</label>
+    <input id="fEquip" list="listaEquip" autocomplete="off" placeholder="Ex.: BBA 3 TORRE ETANOL, ESTEIRA TA04, CCM 4">
+    <datalist id="listaEquip"></datalist>
+    <label>SERVIÇO REALIZADO / OCORRÊNCIA</label>
+    <textarea id="fTexto" placeholder="Descreva o que foi feito"></textarea>
+    <div class="linha">
+      <div><label>INÍCIO</label><div class="hrs"><input type="time" id="fIni"><button onclick="agoraEm('fIni')">AGORA</button></div></div>
+      <div><label>FIM</label><div class="hrs"><input type="time" id="fFim"><button onclick="agoraEm('fFim')">AGORA</button></div></div>
+    </div>
+    <label>STATUS</label>
+    <div class="status" id="fStatus">
+      <button class="s-CONCLUIDO" data-s="CONCLUIDO">CONCLUÍDO</button>
+      <button class="s-ANDAMENTO" data-s="ANDAMENTO">ANDAMENTO</button>
+      <button class="s-PENDENTE" data-s="PENDENTE">PENDENTE</button>
+    </div>
+    <div id="boxDesc" class="oculto">
+      <label>DESCRIÇÃO DA PENDÊNCIA (obrigatório)</label>
+      <textarea id="fDesc" placeholder="O que falta fazer e por quê"></textarea>
+    </div>
+    <div class="linha">
+      <div><label>Nº LT</label><input id="fLt" placeholder="Opcional"></div>
+      <div><label>ORDEM OU NOTA</label><input id="fOrdem" inputmode="numeric" placeholder="Só números"></div>
+    </div>
+    <div id="boxJust">
+      <label>SEM ORDEM? JUSTIFIQUE (obrigatório sem ordem/nota)</label>
+      <textarea id="fJust" placeholder="Ex.: atendimento emergencial, ordem ainda não aberta no SAP..."></textarea>
+    </div>
+    <div id="fAlerta"></div>
+    <div class="erro" id="fErro"></div>
+    <div class="botoes">
+      <button class="b-del oculto" id="bDel" onclick="excluir()">EXCLUIR</button>
+      <button class="b-sec" onclick="cancelarForm()">CANCELAR</button>
+      <button class="b-pri" id="bSalvar" onclick="salvar()">SALVAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL FINALIZAR PENDÊNCIA ============ -->
+<div class="fundoModal oculto" id="mFin">
+  <div class="modal">
+    <h2>Finalizar pendência</h2>
+    <div class="ctx">Fica registrado que você finalizou, e entra como ocorrência no seu turno.</div>
+    <div class="ref" id="pRef"></div>
+    <label>O QUE FOI FEITO (obrigatório)</label>
+    <textarea id="pFeito" placeholder="Descreva o serviço que finalizou a pendência"></textarea>
+    <div class="linha">
+      <div><label>INÍCIO</label><div class="hrs"><input type="time" id="pIni"><button onclick="agoraEm('pIni')">AGORA</button></div></div>
+      <div><label>FIM</label><div class="hrs"><input type="time" id="pFim"><button onclick="agoraEm('pFim')">AGORA</button></div></div>
+    </div>
+    <div class="linha">
+      <div><label>Nº LT</label><input id="pLt" placeholder="Opcional"></div>
+      <div><label>ORDEM OU NOTA</label><input id="pOrdem" inputmode="numeric" placeholder="Só números"></div>
+    </div>
+    <div id="boxPJust">
+      <label>SEM ORDEM? JUSTIFIQUE (obrigatório sem ordem/nota)</label>
+      <textarea id="pJust" placeholder="Ex.: atendimento emergencial, ordem ainda não aberta no SAP..."></textarea>
+    </div>
+    <div class="erro" id="pErro"></div>
+    <div class="botoes">
+      <button class="b-sec" onclick="fechar('mFin')">CANCELAR</button>
+      <button class="b-pri" onclick="confirmarFinalizar()">FINALIZAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAIS ADMIN ============ -->
+<div class="fundoModal oculto" id="mSenha">
+  <div class="modal" style="width:440px">
+    <h2>Acesso do administrador</h2>
+    <label>SENHA</label>
+    <input type="password" id="aSenha" style="text-transform:none" onkeydown="if(event.key==='Enter')entrarAdmin()">
+    <div class="erro" id="aErro"></div>
+    <div class="botoes"><button class="b-sec" onclick="fechar('mSenha')">CANCELAR</button><button class="b-pri" onclick="entrarAdmin()">ENTRAR</button></div>
+  </div>
+</div>
+
+<div class="fundoModal oculto" id="mPessoa">
+  <div class="modal">
+    <h2 id="pfTitulo">Funcionário</h2>
+    <div class="linha">
+      <div style="flex:0 0 200px"><label>Nº DO CRACHÁ</label><input id="pfCracha" inputmode="numeric"></div>
+      <div><label>NOME</label><input id="pfNome"></div>
+    </div>
+    <label>OFICINA</label>
+    <input id="pfOficina" list="listaOfic" autocomplete="off" placeholder="EX.: ELÉTRICA, INSTRUMENTAÇÃO"><datalist id="listaOfic"></datalist>
+    <label>ESCALA</label>
+    <select id="pfPreset" onchange="presetCiclo()">
+      <option value="A,A,A,A,A,F">Turno A – 5x1</option>
+      <option value="D,D,D,D,D,D,F">6x1 (07:00 às 16:48)</option>
+      <option value="B,B,B,B,B,F">Turno B – 5x1</option>
+      <option value="C,C,C,C,C,F">Turno C – 5x1</option>
+      <option value="B,B,C,C,F,F">Folguista – 2 B, 2 C, 2 folgas</option>
+      <option value="">Personalizada...</option>
+    </select>
+    <div id="boxCiclo" class="oculto"><label>CICLO PERSONALIZADO (um item por dia: A, B, C, D=6x1 ou F=folga)</label><input id="pfCiclo" placeholder="EX.: A,A,A,A,A,A,F"></div>
+    <div class="linha">
+      <div><label>1º DIA DE SERVIÇO (1º dia de trabalho após uma folga)</label><input type="date" id="pfInicio"></div>
+      <div><label>SITUAÇÃO</label><select id="pfAtivo"><option value="SIM">Ativo</option><option value="NAO">Inativo</option></select></div>
+    </div>
+    <div class="ctx" id="pfPrevia" style="margin-top:10px"></div>
+    <div class="erro" id="pfErro"></div>
+    <div class="botoes"><button class="b-sec" onclick="fechar('mPessoa')">CANCELAR</button><button class="b-pri" onclick="salvarPessoa()">SALVAR</button></div>
+  </div>
+</div>
+
+<div class="fundoModal oculto" id="mExc">
+  <div class="modal">
+    <h2>Exceção na escala</h2>
+    <div class="ctx">Troca de turno, férias, atestado, folga extra... Vale por cima do ciclo normal.</div>
+    <label>FUNCIONÁRIO</label><select id="exPessoa"></select>
+    <div class="linha">
+      <div><label>DE</label><input type="date" id="exIni"></div>
+      <div><label>ATÉ</label><input type="date" id="exFim"></div>
+    </div>
+    <label>NESSES DIAS TRABALHA NO</label>
+    <div class="opcoes" id="exTurno">
+      <button data-t="A">TURNO A</button><button data-t="B">TURNO B</button><button data-t="C">TURNO C</button><button data-t="D">6X1</button><button data-t="F">FOLGA / AUSENTE</button>
+    </div>
+    <label>MOTIVO</label><input id="exMotivo" placeholder="EX.: FÉRIAS, TROCA COM FULANO">
+    <div class="erro" id="exErro"></div>
+    <div class="botoes"><button class="b-sec" onclick="fechar('mExc')">CANCELAR</button><button class="b-pri" onclick="salvarExcecao()">SALVAR</button></div>
+  </div>
+</div>
+
+<div class="fundoModal oculto" id="mMotivo">
+  <div class="modal" style="width:560px">
+    <h2>Cancelar pendência</h2>
+    <div class="ref" id="mmRef"></div>
+    <label>MOTIVO (obrigatório)</label><textarea id="mmTexto" placeholder="EX.: LANÇADA EM DUPLICIDADE"></textarea>
+    <div class="erro" id="mmErro"></div>
+    <div class="botoes"><button class="b-sec" onclick="fechar('mMotivo')">VOLTAR</button><button class="b-pri" style="background:var(--pen)" onclick="confirmarCancelamento()">CANCELAR PENDÊNCIA</button></div>
+  </div>
+</div>
+
+<!-- ============ CONFIRMAÇÃO DE IDENTIFICAÇÃO ============ -->
+<div class="fundoModal oculto" id="mConf">
+  <div class="modal" style="width:520px">
+    <h2>Confirme seus dados</h2>
+    <table class="tabela" style="font-size:18px;margin-top:8px">
+      <tr><td style="color:var(--suave);width:110px">Nome</td><td><b id="cfNome"></b></td></tr>
+      <tr><td style="color:var(--suave)">Turno</td><td><b id="cfTurno"></b></td></tr>
+      <tr><td style="color:var(--suave)">Oficina</td><td><b id="cfOficina"></b></td></tr>
+    </table>
+    <div class="botoes"><button class="b-sec" onclick="voltarLogin()">VOLTAR</button><button class="b-pri" onclick="confirmarLogin()">OK</button></div>
+  </div>
+</div>
+
+<!-- ============ LANÇAR APÓS O ENVIO ============ -->
+<div class="fundoModal oculto" id="mApos">
+  <div class="modal" style="width:560px">
+    <h2>Relatório deste turno já foi enviado</h2>
+    <div class="ref" id="apTexto"></div>
+    <div class="botoes"><button class="b-sec" onclick="fechar('mApos')">VOLTAR</button><button class="b-pri" onclick="fechar('mApos');novaOcorrenciaIr()">LANÇAR MESMO ASSIM</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="carregando" class="oculto">Aguarde...</div>
+
+<script>
+/* ================= ESTADO ================= */
+var S = { cracha:'', user:null, turno:'', dk:'', dados:null, aba:'minhas', editId:null, status:'', pendId:null, confirmarSobrep:false, confirmarDel:false };
+var digitado = '';
+var timerOcioso = null;
+
+/* ================= PONTE COM O SERVIDOR ================= */
+function api(fn, args, ok) {
+  carregando(true);
+  var runner = (typeof google !== 'undefined' && google.script) ? google.script.run : DEMO;
+  var r = runner.withSuccessHandler(function (res) { carregando(false); ok(res); })
+                .withFailureHandler(function (e) { carregando(false); erroGeral(e && e.message ? e.message : String(e)); });
+  r[fn].apply(r, args);
+}
+var erroAtual = null;
+function erroGeral(msg) { if (erroAtual) erroAtual(msg); else toast(msg); }
+function carregando(on) { document.getElementById('carregando').classList.toggle('oculto', !on); }
+
+/* ================= LOGIN ================= */
+(function montarTeclado() {
+  var t = document.getElementById('teclado');
+  ['1','2','3','4','5','6','7','8','9','⌫','0','ENTRAR'].forEach(function (k) {
+    var b = document.createElement('button');
+    b.textContent = k;
+    if (k === 'ENTRAR') b.className = 'entrar';
+    if (k === '⌫') b.className = 'apagar';
+    b.onclick = function () { tecla(k); };
+    t.appendChild(b);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!document.getElementById('mConf').classList.contains('oculto')) { if (e.key === 'Enter') confirmarLogin(); return; }
+    if (!document.getElementById('telaLogin').classList.contains('oculto') && document.getElementById('mSenha').classList.contains('oculto')) {
+      if (/^\d$/.test(e.key)) tecla(e.key);
+      else if (e.key === 'Backspace') tecla('⌫');
+      else if (e.key === 'Enter') tecla('ENTRAR');
+    }
+  });
+})();
+
+function tecla(k) {
+  document.getElementById('msgLogin').textContent = '';
+  if (k === '⌫') digitado = digitado.slice(0, -1);
+  else if (k === 'ENTRAR') return entrar();
+  else if (digitado.length < 12) digitado += k;
+  document.getElementById('visor').innerHTML = digitado ? esc(digitado) : '<span class="ph">Nº do crachá</span>';
+}
+
+function entrar() {
+  if (!digitado) return;
+  erroAtual = function (m) { document.getElementById('msgLogin').textContent = m; };
+  api('identificar', [digitado], function (u) {
+    PEND_LOGIN = u;
+    document.getElementById('cfNome').textContent = u.nome;
+    document.getElementById('cfTurno').textContent = rt(u.turno) + ' · ' + u.br + (u.foraEscala ? ' (fora da sua escala)' : '');
+    document.getElementById('cfOficina').textContent = u.oficina || '—';
+    document.getElementById('mConf').classList.remove('oculto');
+  });
+}
+var PEND_LOGIN = null;
+function voltarLogin() { PEND_LOGIN = null; fechar('mConf'); digitado = ''; tecla(''); }
+function confirmarLogin() {
+  var u = PEND_LOGIN; if (!u) return;
+  PEND_LOGIN = null; fechar('mConf');
+  (function () {
+    S.user = u; S.cracha = u.cracha; S.turno = u.turno; S.dk = u.dk; S.aba = 'minhas';
+    digitado = ''; tecla('');
+    document.getElementById('telaLogin').classList.add('oculto');
+    document.getElementById('telaPrincipal').classList.remove('oculto');
+    montarCabecalho();
+    recarregar();
+    reiniciarOcioso();
+  })();
+}
+
+function sair() {
+  if (ADM.token) { try { api('adminSair', [ADM.token], function () {}); } catch (e) {} }
+  ADM = { token:null };
+  document.getElementById('telaAdmin').classList.add('oculto');
+  ['mSenha','mPessoa','mExc','mMotivo','mConf','mApos'].forEach(fechar); PEND_LOGIN = null;
+  S = { cracha:'', user:null, turno:'', dk:'', dados:null, aba:'minhas', editId:null, status:'', pendId:null };
+  ['mOco','mFin'].forEach(fechar);
+  document.getElementById('telaPrincipal').classList.add('oculto');
+  document.getElementById('telaLogin').classList.remove('oculto');
+  clearTimeout(timerOcioso);
+}
+
+function reiniciarOcioso() {
+  clearTimeout(timerOcioso);
+  if (!S.user && !ADM.token) return;
+  var min = S.user ? (S.user.logoutMin || 5) : Math.max(15, ADM.logoutMin || 5);
+  timerOcioso = setTimeout(function () { sair(); toast('Sessão encerrada por inatividade'); }, min * 60000);
+}
+['click','keydown','touchstart','input'].forEach(function (ev) { document.addEventListener(ev, reiniciarOcioso, true); });
+
+/* ================= CABEÇALHO E TURNO ================= */
+function montarCabecalho() {
+  var u = S.user;
+  document.getElementById('hNome').textContent = u.nome;
+  var esc_ = u.escalaHoje === 'F' ? 'folga hoje' : (u.escalaHoje ? rt(u.escalaHoje) + ' hoje' : 'sem escala');
+  document.getElementById('hInfo').textContent = 'Crachá ' + u.cracha + (u.oficina ? ' · ' + u.oficina : '') + ' · escala: ' + esc_;
+  var h = '';
+  ['A','B','C','D'].forEach(function (t) {
+    h += '<button class="' + (t === S.turno ? 'ativo' : '') + '" onclick="escolherTurno(\'' + t + '\')">' + rt(t) +
+         '<small>' + u.opcoes[t].br + '</small></button>';
+  });
+  document.getElementById('hTurnos').innerHTML = h;
+}
+
+function escolherTurno(t) {
+  if (t === S.turno) return;
+  S.turno = t; S.dk = S.user.opcoes[t].dk;
+  montarCabecalho();
+  recarregar();
+}
+
+function recarregar() {
+  erroAtual = null;
+  api('carregarTurno', [S.cracha, S.turno, S.dk], aplicar);
+}
+
+function aplicar(d) {
+  S.dados = d;
+  var av = '';
+  var esperado = S.user.turno === S.turno && !S.user.foraEscala;
+  if (!esperado) av += '<div class="aviso amarelo">Você está lançando no ' + rt(S.turno) + ' de ' + br(S.dk) +
+      ', que não é o da sua escala. O lançamento fica marcado como "fora da escala".</div>';
+  if (d.enviado) av += '<div class="aviso azul">O relatório deste turno já foi enviado aos líderes. Novos lançamentos ficam registrados como "após envio".</div>';
+  if (rascValido()) av += '<div class="aviso azul">Você tem um lançamento que não foi salvo. ' +
+      '<button class="bt mini" onclick="continuarRasc()">CONTINUAR</button> <button class="bt sec mini" onclick="descartarRasc()">DESCARTAR</button></div>';
+  document.getElementById('avisos').innerHTML = av;
+  document.getElementById('qtdPend').textContent = d.pendencias.length;
+  trocarAba(S.aba);
+}
+
+/* ================= LISTAS ================= */
+function trocarAba(a) {
+  S.aba = a;
+  Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.classList.toggle('ativo', b.getAttribute('data-aba') === a); });
+  var d = S.dados; if (!d) return;
+  var c = document.getElementById('conteudo');
+  if (a === 'minhas') {
+    var m = d.ocorrencias.filter(function (o) { return o.cracha === S.cracha; });
+    c.innerHTML = m.length ? m.map(function (o) { return cartao(o, true); }).join('')
+      : '<div class="vazio">Nenhum lançamento seu neste turno ainda.<br>Toque em <b>+ NOVA OCORRÊNCIA</b> acima para começar.</div>';
+  } else if (a === 'equipe') {
+    if (!d.ocorrencias.length) { c.innerHTML = '<div class="vazio">Ninguém lançou neste turno ainda.</div>'; return; }
+    var h = '', atual = null;
+    d.ocorrencias.forEach(function (o) {
+      if (o.nome !== atual) { atual = o.nome; h += '<div class="grupo">' + esc(o.nome) + '</div>'; }
+      h += cartao(o, o.cracha === S.cracha);
+    });
+    c.innerHTML = h;
+  } else {
+    c.innerHTML = d.pendencias.length ? d.pendencias.map(cartaoPend).join('')
+      : '<div class="vazio">Nenhuma pendência em aberto. 👍</div>';
+  }
+}
+
+function cartao(o, editavel) {
+  var det = [];
+  if (o.descricao) det.push('<b>Pendência:</b> ' + esc(o.descricao));
+  if (o.lt) det.push('<b>LT:</b> ' + esc(o.lt));
+  if (o.ordem) det.push('<b>Ordem/Nota:</b> ' + esc(o.ordem));
+  else if (o.justificativa) det.push('<b>Sem ordem:</b> ' + esc(o.justificativa));
+  if (o.foraEscala) det.push('fora da escala');
+  if (o.aposEnvio) det.push('após envio');
+  return '<div class="item"><div class="hora">' + esc(o.inicio) + '<small>até</small>' + (esc(o.fim) || '--:--') + '</div>' +
+    '<div class="corpo"><div class="txt">' + (o.equipamento ? '<span class="eq">' + esc(o.equipamento) + '</span>' : '') + esc(o.ocorrencia) + '</div><div class="det"><span class="pill p-' + o.status + '">' +
+    rotulo(o.status) + '</span>' + det.join(' · ') + '</div></div>' +
+    (!editavel ? '' : (S.dados && S.dados.enviado && !o.aposEnvio)
+      ? '<div class="acoes"><span class="trava">🔒 ENVIADO</span></div>'
+      : '<div class="acoes"><button onclick="abrirForm(\'' + o.id + '\')">EDITAR</button></div>') + '</div>';
+}
+
+function cartaoPend(p) {
+  var cor = p.dias >= 7 ? 'var(--pen)' : p.dias >= 3 ? '#FF9421' : 'var(--azul)';
+  return '<div class="item"><div class="dias" style="color:' + cor + '">' + p.dias + '<small>dia(s)</small></div>' +
+    '<div class="corpo"><div class="txt">' + (p.equipamento ? '<span class="eq">' + esc(p.equipamento) + '</span>' : '') + esc(p.ocorrencia) + '</div><div class="det"><span class="pill p-' + p.statusOriginal + '">' +
+    rotulo(p.statusOriginal) + '</span><b>Falta:</b> ' + esc(p.descricao) + '</div><div class="det">Aberta em ' + esc(p.abertaEm) +
+    ' · ' + rt(p.turno) + ' · ' + esc(p.nome) + (p.ordem ? ' · Ordem ' + esc(p.ordem) : '') + (p.lt ? ' · LT ' + esc(p.lt) : '') + '</div></div>' +
+    '<div class="acoes"><button class="fin" onclick="abrirFinalizar(\'' + p.id + '\')">FINALIZAR</button></div></div>';
+}
+
+/* ================= FORMULÁRIO ================= */
+Array.prototype.forEach.call(document.querySelectorAll('#fStatus button'), function (b) {
+  b.onclick = function () { marcarStatus(b.getAttribute('data-s')); };
+});
+function marcarStatus(s) {
+  S.status = s; setTimeout(gravarRasc, 0);
+  Array.prototype.forEach.call(document.querySelectorAll('#fStatus button'), function (b) { b.classList.toggle('sel', b.getAttribute('data-s') === s); });
+  document.getElementById('boxDesc').classList.toggle('oculto', !s || s === 'CONCLUIDO');
+}
+
+var FORM_ADMIN = false;
+function abrirForm(id, admin) {
+  FORM_ADMIN = !!admin;
+  var fonte = admin ? ADM.lanc : S.dados;
+  var o = id ? fonte.ocorrencias.filter(function (x) { return x.id === id; })[0] : null;
+  S.editId = o ? o.id : null; S.confirmarSobrep = false; S.confirmarDel = false;
+  document.getElementById('fTitulo').textContent = o ? 'Editar ocorrência' : 'Nova ocorrência';
+  document.getElementById('fCtx').textContent = admin
+    ? 'ADMINISTRADOR · ' + (o ? o.nome + ' · ' : '') + rt(ADM.turno) + ' · ' + br(ADM.dk)
+    : S.user.nome + ' · ' + rt(S.turno) + ' · ' + br(S.dk);
+  document.getElementById('boxPessoa').classList.toggle('oculto', !(admin && !o));
+  if (admin && !o) {
+    var esc_ = {}; ADM.lanc.escalados.forEach(function (p) { esc_[p.cracha] = 1; });
+    var lista = ADM.dados.pessoas.filter(function (p) { return p.ativo; })
+      .sort(function (a, b) { return (esc_[b.cracha] || 0) - (esc_[a.cracha] || 0) || (a.nome < b.nome ? -1 : 1); });
+    document.getElementById('fPessoa').innerHTML = '<option value="">Escolha...</option>' + lista.map(function (p) {
+      return '<option value="' + esc(p.cracha) + '">' + esc(p.nome) + (esc_[p.cracha] ? ' (escalado)' : '') + '</option>'; }).join('');
+  }
+  document.getElementById('fTexto').value = o ? o.ocorrencia : '';
+  document.getElementById('fEquip').value = o ? (o.equipamento || '') : '';
+  document.getElementById('listaEquip').innerHTML = (fonte.equipamentos || []).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
+  document.getElementById('fIni').value = o ? o.inicio : (admin ? '' : sugerirInicio());
+  document.getElementById('fFim').value = o ? o.fim : '';
+  document.getElementById('fDesc').value = o ? o.descricao : '';
+  document.getElementById('fLt').value = o ? o.lt : '';
+  document.getElementById('fOrdem').value = o ? o.ordem : '';
+  document.getElementById('fJust').value = o ? (o.justificativa || '') : '';
+  mostrarJust('fOrdem', 'boxJust');
+  document.getElementById('fErro').textContent = '';
+  document.getElementById('fAlerta').innerHTML = '';
+  document.getElementById('bSalvar').textContent = 'SALVAR';
+  var del = document.getElementById('bDel'); del.classList.toggle('oculto', !o); del.textContent = 'EXCLUIR';
+  marcarStatus(o ? o.status : '');
+  document.getElementById('mOco').classList.remove('oculto');
+  setTimeout(function () { document.getElementById(admin && !o ? 'fPessoa' : 'fTexto').focus(); }, 50);
+}
+
+/* ================= RASCUNHO (guardado no tablet) ================= */
+var CAMPOS_RASC = ['fEquip','fTexto','fIni','fFim','fDesc','fLt','fOrdem','fJust'];
+function chaveRasc() { return 'livro_rasc_' + S.cracha; }
+function lerRasc() { try { return JSON.parse(localStorage.getItem(chaveRasc()) || 'null'); } catch (e) { return null; } }
+function limparRasc() { try { localStorage.removeItem(chaveRasc()); } catch (e) {} }
+function rascValido() {
+  var r = S.cracha ? lerRasc() : null;
+  if (r && Date.now() - r.em > 24 * 3600000) { limparRasc(); return null; }
+  return (r && r.turno === S.turno && r.dk === S.dk) ? r : null;
+}
+function gravarRasc() {
+  if (FORM_ADMIN || !S.cracha || document.getElementById('mOco').classList.contains('oculto')) return;
+  var r = { id: S.editId, turno: S.turno, dk: S.dk, status: S.status, em: Date.now(), c: {} };
+  CAMPOS_RASC.forEach(function (id) { r.c[id] = document.getElementById(id).value; });
+  if (!r.c.fTexto && !r.c.fEquip && !r.c.fDesc) return;
+  try { localStorage.setItem(chaveRasc(), JSON.stringify(r)); } catch (e) {}
+}
+document.getElementById('mOco').addEventListener('input', gravarRasc);
+function novaOcorrencia() {
+  if (S.dados && S.dados.enviado) {
+    document.getElementById('apTexto').innerHTML = 'O relatório do <b>' + rt(S.turno) + ' de ' + br(S.dk) + '</b> já foi enviado aos líderes.<br><br>' +
+      'Se você é de outro turno, toque em VOLTAR e escolha o turno certo no topo da tela.<br>Se quer lançar neste turno mesmo, o lançamento fica marcado como <b>"após envio"</b>.';
+    document.getElementById('mApos').classList.remove('oculto');
+    return;
+  }
+  novaOcorrenciaIr();
+}
+function novaOcorrenciaIr() { var r = rascValido(); if (r && !r.id) continuarRasc(); else abrirForm(); }
+function continuarRasc() {
+  var r = rascValido(); if (!r) return abrirForm();
+  var existe = r.id && S.dados.ocorrencias.some(function (o) { return o.id === r.id; });
+  abrirForm(existe ? r.id : null);
+  CAMPOS_RASC.forEach(function (id) { document.getElementById(id).value = r.c[id] || ''; });
+  marcarStatus(r.status || ''); mostrarJust('fOrdem', 'boxJust');
+  document.getElementById('fAlerta').innerHTML = '<div class="alerta">Rascunho recuperado. Confira e toque em SALVAR.</div>';
+}
+function descartarRasc() { limparRasc(); aplicar(S.dados); }
+function cancelarForm() { var adm = FORM_ADMIN; if (!adm) limparRasc(); fechar('mOco'); if (!adm && S.dados) aplicar(S.dados); }
+
+function sugerirInicio() {
+  var m = S.dados.ocorrencias.filter(function (o) { return o.cracha === S.cracha && o.fim; });
+  return m.length ? m[m.length - 1].fim : '';
+}
+
+function salvar() {
+  var d = {
+    id: S.editId, turno: FORM_ADMIN ? ADM.turno : S.turno, dk: FORM_ADMIN ? ADM.dk : S.dk, cracha: FORM_ADMIN ? val('fPessoa') : '',
+    ocorrencia: val('fTexto'), inicio: val('fIni'), fim: val('fFim'), status: S.status,
+    descricao: val('fDesc'), lt: val('fLt'), ordem: val('fOrdem'), justificativa: val('fJust'), equipamento: val('fEquip')
+  };
+  var e = document.getElementById('fErro');
+  if (FORM_ADMIN && !d.id && !d.cracha) return e.textContent = 'Escolha o eletricista.';
+  if (d.equipamento.length < 2) return e.textContent = 'Informe o equipamento/TAG.';
+  if (d.ocorrencia.length < 5) return e.textContent = 'Descreva a ocorrência.';
+  if (!d.inicio) return e.textContent = 'Informe a hora de início.';
+  if (!d.status) return e.textContent = 'Escolha o status.';
+  if (d.status === 'CONCLUIDO' && !d.fim) return e.textContent = 'Informe a hora de fim.';
+  if (d.status !== 'CONCLUIDO' && d.descricao.length < 5) return e.textContent = 'Descreva a pendência.';
+  if (d.ordem && /\D/.test(d.ordem)) return e.textContent = 'Ordem/Nota deve ter só números.';
+  if (!d.ordem && d.justificativa.length < 5) return e.textContent = 'Informe a ordem/nota ou justifique por que está sem.';
+  if (d.ordem) d.justificativa = '';
+  if (d.status === 'CONCLUIDO') d.descricao = '';
+  e.textContent = '';
+
+  var conflito = FORM_ADMIN ? null : sobreposicao(d);
+  if (conflito && !S.confirmarSobrep) {
+    document.getElementById('fAlerta').innerHTML = '<div class="alerta">Esse horário se sobrepõe a "' + esc(conflito.ocorrencia) +
+      '" (' + conflito.inicio + '–' + conflito.fim + '). Confira e toque de novo para salvar mesmo assim.</div>';
+    document.getElementById('bSalvar').textContent = 'SALVAR MESMO ASSIM';
+    S.confirmarSobrep = true;
+    return;
+  }
+  erroAtual = function (m) {
+    e.textContent = (!FORM_ADMIN && (navigator.onLine === false || /network|fetch|conex|connection/i.test(m)))
+      ? 'Sem conexão. O que você digitou está guardado neste tablet. Quando a internet voltar, toque em SALVAR de novo.' : m;
+  };
+  if (FORM_ADMIN) return api('adminSalvarOcorrencia', [ADM.token, d], function (r) { fechar('mOco'); ADM.lanc = r; renderLanc(); toast('Ocorrência salva'); });
+  api('salvarOcorrencia', [S.cracha, d], function (r) { limparRasc(); fechar('mOco'); aplicar(r); toast('Ocorrência salva'); });
+}
+
+function excluir() {
+  var b = document.getElementById('bDel');
+  if (!S.confirmarDel) { S.confirmarDel = true; b.textContent = 'CONFIRMAR EXCLUSÃO'; return; }
+  erroAtual = function (m) { document.getElementById('fErro').textContent = m; };
+  if (FORM_ADMIN) return api('adminExcluirOcorrencia', [ADM.token, S.editId, ADM.turno, ADM.dk], function (r) { fechar('mOco'); ADM.lanc = r; renderLanc(); toast('Ocorrência excluída'); });
+  api('excluirOcorrencia', [S.cracha, S.editId, S.turno, S.dk], function (r) { limparRasc(); fechar('mOco'); aplicar(r); toast('Ocorrência excluída'); });
+}
+
+function minT(hm) {
+  if (!hm) return null;
+  var p = hm.split(':'); var m = (+p[0]) * 60 + (+p[1]);
+  return (S.turno === 'C' && m < 12 * 60) ? m + 1440 : m; // turno C passa da meia-noite
+}
+function sobreposicao(d) {
+  var a1 = minT(d.inicio), a2 = minT(d.fim); if (a1 === null || a2 === null) return null;
+  return S.dados.ocorrencias.filter(function (o) {
+    if (o.cracha !== S.cracha || o.id === d.id || !o.fim) return false;
+    var b1 = minT(o.inicio), b2 = minT(o.fim);
+    return a1 < b2 && b1 < a2;
+  })[0] || null;
+}
+
+/* ================= FINALIZAR PENDÊNCIA ================= */
+function abrirFinalizar(id) {
+  var p = S.dados.pendencias.filter(function (x) { return x.id === id; })[0];
+  S.pendId = id;
+  document.getElementById('pRef').innerHTML = '<b>' + esc(p.ocorrencia) + '</b><br>Falta: ' + esc(p.descricao) +
+    '<br><small>Aberta em ' + esc(p.abertaEm) + ' · ' + rt(p.turno) + ' · ' + esc(p.nome) + '</small>';
+  ['pFeito','pIni','pFim','pLt','pOrdem','pJust'].forEach(function (i) { document.getElementById(i).value = ''; });
+  document.getElementById('pLt').value = p.lt || '';
+  document.getElementById('pOrdem').value = p.ordem || '';
+  document.getElementById('pIni').value = sugerirInicio();
+  mostrarJust('pOrdem', 'boxPJust');
+  document.getElementById('pErro').textContent = '';
+  document.getElementById('mFin').classList.remove('oculto');
+}
+
+function confirmarFinalizar() {
+  var d = { feito: val('pFeito'), inicio: val('pIni'), fim: val('pFim'), lt: val('pLt'), ordem: val('pOrdem'), justificativa: val('pJust') };
+  var e = document.getElementById('pErro');
+  if (d.feito.length < 5) return e.textContent = 'Descreva o que foi feito.';
+  if (!d.inicio || !d.fim) return e.textContent = 'Informe início e fim.';
+  if (!d.ordem && d.justificativa.length < 5) return e.textContent = 'Informe a ordem/nota ou justifique por que está sem.';
+  if (d.ordem) d.justificativa = '';
+  erroAtual = function (m) { e.textContent = m; };
+  api('finalizarPendencia', [S.cracha, S.pendId, S.turno, S.dk, d], function (r) { fechar('mFin'); aplicar(r); toast('Pendência finalizada'); });
+}
+
+/* ================= UTILITÁRIOS ================= */
+function rt(t) { return t === 'D' ? '6X1' : 'TURNO ' + t; }
+function val(id) { return document.getElementById(id).value.trim(); }
+function fechar(id) { document.getElementById(id).classList.add('oculto'); }
+function agoraEm(id) { var n = new Date(); document.getElementById(id).value = ('0' + n.getHours()).slice(-2) + ':' + ('0' + n.getMinutes()).slice(-2); gravarRasc(); }
+function br(dk) { var p = dk.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+function rotulo(s) { return { CONCLUIDO:'CONCLUÍDO', ANDAMENTO:'ANDAMENTO', PENDENTE:'PENDENTE' }[s] || s; }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 2200); }
+function mostrarJust(idOrdem, idBox) { document.getElementById(idBox).classList.toggle('oculto', !!val(idOrdem)); }
+document.getElementById('fOrdem').addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); mostrarJust('fOrdem', 'boxJust'); });
+document.getElementById('pOrdem').addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); mostrarJust('pOrdem', 'boxPJust'); });
+
+
+/* ================= ADMINISTRADOR ================= */
+var ADM = { token:null };
+var DIAS_SEM = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
+
+function abrirSenha() {
+  document.getElementById('aSenha').value = '';
+  document.getElementById('aErro').textContent = '';
+  document.getElementById('mSenha').classList.remove('oculto');
+  setTimeout(function () { document.getElementById('aSenha').focus(); }, 50);
+}
+
+function entrarAdmin() {
+  erroAtual = function (m) { document.getElementById('aErro').textContent = m; };
+  api('adminLogin', [document.getElementById('aSenha').value], function (r) {
+    ADM = { token: r.token, hoje: r.hoje, logoutMin: r.logoutMin, opcoes: r.opcoes, aba: 'lanc', dados: null, lanc: null };
+    var atual = ['A','B','C','D'].filter(function (t) { return r.opcoes[t].atual; })[0] || 'A';
+    ADM.turno = atual; ADM.dk = r.opcoes[atual].dk;
+    ADM.escIni = r.hoje; ADM.relDk = ADM.dk; ADM.relTurno = atual;
+    fechar('mSenha');
+    document.getElementById('telaLogin').classList.add('oculto');
+    document.getElementById('telaAdmin').classList.remove('oculto');
+    erroAtual = null;
+    api('adminDados', [ADM.token], function (d) { ADM.dados = d; admAba('lanc'); });
+    reiniciarOcioso();
+  });
+}
+
+function admAba(a) {
+  ADM.aba = a; erroAtual = null;
+  Array.prototype.forEach.call(document.querySelectorAll('#navAdm button'), function (b) { b.classList.toggle('ativo', b.getAttribute('data-aba') === a); });
+  var c = document.getElementById('admConteudo'); c.innerHTML = '';
+  if (a === 'lanc') carregarLanc();
+  else if (a === 'func') renderFunc();
+  else if (a === 'escala') carregarEscala();
+  else if (a === 'rel') renderRel();
+  else renderCfg();
+}
+
+function seletorDataTurno(prefixo, dk, turno, acao) {
+  return '<div class="filtros"><div><label>DATA DO TURNO</label><input type="date" id="' + prefixo + 'Data" value="' + dk + '"></div>' +
+    '<div><label>TURNO</label><select id="' + prefixo + 'Turno" style="width:110px">' + ['A','B','C','D'].map(function (t) {
+      return '<option' + (t === turno ? ' selected' : '') + ' value="' + t + '">' + (t === 'D' ? '6x1' : t) + '</option>'; }).join('') + '</select></div>' +
+    '<button class="bt" onclick="' + acao + '">CARREGAR</button></div>';
+}
+
+/* ----- Lançamentos ----- */
+function carregarLanc() {
+  var c = document.getElementById('admConteudo');
+  var dEl = document.getElementById('alData');
+  if (dEl) { ADM.dk = dEl.value; ADM.turno = document.getElementById('alTurno').value; }
+  api('adminLancamentos', [ADM.token, ADM.dk, ADM.turno], function (r) { ADM.lanc = r; renderLanc(); });
+}
+
+function renderLanc() {
+  var r = ADM.lanc, c = document.getElementById('admConteudo');
+  var lancou = {}; r.ocorrencias.forEach(function (o) { lancou[o.cracha] = 1; });
+  var faltam = r.escalados.filter(function (p) { return !lancou[p.cracha]; });
+  var h = seletorDataTurno('al', ADM.dk, ADM.turno, 'carregarLanc()');
+  h += '<div class="resumo"><b>' + r.ocorrencias.length + '</b> ocorrência(s) · <b>' + Object.keys(lancou).length + '</b> de <b>' + r.escalados.length +
+    '</b> escalados lançaram · relatório ' + (r.enviado ? '<b style="color:var(--ok)">já enviado</b>' : '<b>ainda não enviado</b>') +
+    (faltam.length ? '<br>Não lançaram: ' + faltam.map(function (p) { return '<span class="chip">' + esc(p.nome) + '</span>'; }).join('') : '') + '</div>';
+  h += '<div class="barraNova"><button onclick="abrirForm(null, true)">+ LANÇAR POR UM ELETRICISTA</button></div>';
+  if (!r.ocorrencias.length) h += '<div class="vazio">Nenhum lançamento neste turno.</div>';
+  var atual = null;
+  r.ocorrencias.forEach(function (o) {
+    if (o.nome !== atual) { atual = o.nome; h += '<div class="grupo">' + esc(o.nome) + '</div>'; }
+    h += cartao(o, false).replace(/<\/div>$/, '<div class="acoes"><button onclick="abrirForm(\'' + o.id + '\', true)">EDITAR</button></div></div>');
+  });
+  h += '<div class="secao">Pendências em aberto (' + r.pendencias.length + ')</div>';
+  if (!r.pendencias.length) h += '<div class="vazio" style="padding:14px">Nenhuma pendência em aberto.</div>';
+  r.pendencias.forEach(function (p) {
+    h += cartaoPend(p).replace(/<button class="fin"[^<]*<\/button>/, '<button style="background:#fdecea;color:var(--pen)" onclick="cancelarPend(\'' + p.id + '\')">CANCELAR</button>');
+  });
+  c.innerHTML = h;
+}
+
+function cancelarPend(id) {
+  var p = ADM.lanc.pendencias.filter(function (x) { return x.id === id; })[0];
+  ADM.pendId = id;
+  document.getElementById('mmRef').innerHTML = '<b>' + esc(p.ocorrencia) + '</b><br>Falta: ' + esc(p.descricao) + '<br><small>Aberta em ' + esc(p.abertaEm) + ' por ' + esc(p.nome) + '</small>';
+  document.getElementById('mmTexto').value = '';
+  document.getElementById('mmErro').textContent = '';
+  document.getElementById('mMotivo').classList.remove('oculto');
+}
+function confirmarCancelamento() {
+  erroAtual = function (m) { document.getElementById('mmErro').textContent = m; };
+  api('adminCancelarPendencia', [ADM.token, ADM.pendId, val('mmTexto'), ADM.turno, ADM.dk], function (r) {
+    fechar('mMotivo'); ADM.lanc = r; renderLanc(); toast('Pendência cancelada'); });
+}
+
+/* ----- Funcionários ----- */
+function nomeCiclo(c) {
+  return { 'A,A,A,A,A,F':'Turno A – 5x1', 'D,D,D,D,D,D,F':'6x1', 'B,B,B,B,B,F':'Turno B – 5x1', 'C,C,C,C,C,F':'Turno C – 5x1', 'B,B,C,C,F,F':'Folguista' }[c] || c;
+}
+function renderFunc(filtro) {
+  var c = document.getElementById('admConteudo'), f = (filtro || '').toUpperCase();
+  var lista = ADM.dados.pessoas.filter(function (p) { return !f || p.nome.indexOf(f) >= 0 || p.cracha.indexOf(f) >= 0 || (p.oficina || '').indexOf(f) >= 0; });
+  var h = '<div class="filtros"><div style="flex:1"><label>BUSCAR</label><input id="fBusca" style="width:100%" placeholder="Nome ou crachá" value="' + esc(filtro || '') +
+    '" oninput="renderFunc(this.value);var e=document.getElementById(\'fBusca\');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>' +
+    '<button class="bt verde" onclick="abrirPessoa()">+ NOVO FUNCIONÁRIO</button></div>';
+  h += '<div class="resumo">' + ADM.dados.pessoas.filter(function (p) { return p.ativo; }).length + ' ativos · ' + ADM.dados.pessoas.length + ' cadastrados</div>';
+  h += '<table class="tabela"><tr><th>CRACHÁ</th><th>NOME</th><th>OFICINA</th><th>ESCALA</th><th>1º DIA DE SERVIÇO</th><th>SITUAÇÃO</th><th></th></tr>';
+  lista.forEach(function (p) {
+    h += '<tr class="' + (p.ativo ? '' : 'inativo') + '"><td>' + esc(p.cracha) + '</td><td><b>' + esc(p.nome) + '</b></td><td>' + esc(p.oficina || '-') + '</td><td>' + esc(nomeCiclo(p.ciclo)) +
+      '</td><td>' + (p.inicio ? br(p.inicio) : '-') + '</td><td>' + (p.ativo ? 'Ativo' : 'Inativo') +
+      '</td><td style="text-align:right"><button class="bt sec mini" onclick="abrirPessoa(\'' + esc(p.cracha) + '\')">EDITAR</button></td></tr>';
+  });
+  if (!lista.length) h += '<tr><td colspan="7" class="vazio">Nenhum funcionário encontrado.</td></tr>';
+  c.innerHTML = h + '</table>';
+}
+
+function abrirPessoa(cracha) {
+  var p = cracha ? ADM.dados.pessoas.filter(function (x) { return x.cracha === cracha; })[0] : null;
+  ADM.pessoaOrig = p ? p.cracha : null;
+  document.getElementById('pfTitulo').textContent = p ? 'Editar funcionário' : 'Novo funcionário';
+  document.getElementById('pfCracha').value = p ? p.cracha : '';
+  document.getElementById('pfNome').value = p ? p.nome : '';
+  document.getElementById('pfOficina').value = p ? (p.oficina || '') : '';
+  var ofs = {}; ADM.dados.pessoas.forEach(function (x) { if (x.oficina) ofs[x.oficina] = 1; });
+  document.getElementById('listaOfic').innerHTML = Object.keys(ofs).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
+  var preset = document.getElementById('pfPreset');
+  var conhecido = p && Array.prototype.some.call(preset.options, function (o) { return o.value && o.value === p.ciclo; });
+  preset.value = p ? (conhecido ? p.ciclo : '') : 'A,A,A,A,A,F';
+  document.getElementById('pfCiclo').value = p ? p.ciclo : '';
+  document.getElementById('pfInicio').value = p ? p.inicio : ADM.hoje;
+  document.getElementById('pfAtivo').value = p && !p.ativo ? 'NAO' : 'SIM';
+  document.getElementById('pfErro').textContent = '';
+  presetCiclo();
+  document.getElementById('mPessoa').classList.remove('oculto');
+}
+function cicloAtual() { return document.getElementById('pfPreset').value || val('pfCiclo').toUpperCase(); }
+function presetCiclo() {
+  document.getElementById('boxCiclo').classList.toggle('oculto', !!document.getElementById('pfPreset').value);
+  previaCiclo();
+}
+function previaCiclo() {
+  var ciclo = cicloAtual().split(/[,;\s]+/).filter(String), ini = val('pfInicio');
+  var el = document.getElementById('pfPrevia');
+  if (!ciclo.length || !ini) { el.textContent = ''; return; }
+  var partes = [];
+  for (var i = 0; i < 14; i++) {
+    var dk = addDias(ADM.hoje, i), n = ciclo.length, idx = ((difDias(ini, dk) % n) + n) % n;
+    partes.push('<span class="pill t-' + ciclo[idx] + '" style="margin:2px">' + dk.slice(8) + '/' + dk.slice(5, 7) + ' ' + ciclo[idx] + '</span>');
+  }
+  el.innerHTML = 'Próximos 14 dias: ' + partes.join('');
+}
+document.getElementById('pfInicio').addEventListener('change', previaCiclo);
+document.getElementById('pfCiclo').addEventListener('input', previaCiclo);
+document.getElementById('pfCracha').addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); });
+
+function salvarPessoa() {
+  var p = { cracha: val('pfCracha'), nome: val('pfNome'), oficina: val('pfOficina').toUpperCase(), ciclo: cicloAtual(), inicio: val('pfInicio'), ativo: document.getElementById('pfAtivo').value === 'SIM' };
+  erroAtual = function (m) { document.getElementById('pfErro').textContent = m; };
+  api('adminSalvarPessoa', [ADM.token, p, ADM.pessoaOrig], function (d) { ADM.dados = d; fechar('mPessoa'); renderFunc(); toast('Funcionário salvo'); });
+}
+
+/* ----- Escala ----- */
+function carregarEscala() {
+  var e = document.getElementById('esData'); if (e) ADM.escIni = e.value;
+  api('adminEscala', [ADM.token, ADM.escIni, 14], function (r) { ADM.escala = r; renderEscala(); });
+}
+function renderEscala() {
+  var r = ADM.escala, c = document.getElementById('admConteudo');
+  var h = '<div class="filtros"><div><label>A PARTIR DE</label><input type="date" id="esData" value="' + ADM.escIni + '"></div>' +
+    '<button class="bt" onclick="carregarEscala()">VER 14 DIAS</button><div style="flex:1"></div>' +
+    '<button class="bt verde" onclick="abrirExcecao()">+ EXCEÇÃO (TROCA, FÉRIAS...)</button></div>';
+  h += '<div class="legenda" style="margin-bottom:8px"><span class="t-A">A</span><span class="t-B">B</span><span class="t-C">C</span><span class="t-D">D = 6x1</span><span class="t-F">F = folga</span>' +
+    '<span class="t-F t-exc" style="color:#333">contorno laranja = exceção</span></div>';
+  h += '<div class="rolagem"><table class="escala"><tr><th style="text-align:left">FUNCIONÁRIO</th>' + r.datas.map(function (dk) {
+    var ds = new Date(dk + 'T12:00:00').getDay();
+    return '<th class="' + (ds === 0 || ds === 6 ? 'fds' : '') + '">' + DIAS_SEM[ds] + '<br>' + dk.slice(8) + '/' + dk.slice(5, 7) + '</th>'; }).join('') + '</tr>';
+  r.linhas.forEach(function (l) {
+    h += '<tr><td class="nome">' + esc(l.nome) + '</td>' + l.dias.map(function (d) {
+      return '<td class="t-' + (d.t || 'F') + (d.exc ? ' t-exc' : '') + '">' + (d.t || '-') + '</td>'; }).join('') + '</tr>';
+  });
+  ['A','B','C','D'].forEach(function (t) {
+    h += '<tr><td class="nome" style="color:var(--suave)">Total ' + rt(t) + '</td>' + r.totais.map(function (x) { return '<td><b>' + x[t] + '</b></td>'; }).join('') + '</tr>';
+  });
+  h += '</table></div>';
+  var ex = ADM.dados.excecoes;
+  h += '<div class="secao">Exceções cadastradas (' + ex.length + ')</div>';
+  if (!ex.length) h += '<div class="vazio" style="padding:14px">Nenhuma exceção.</div>';
+  else h += '<table class="tabela"><tr><th>FUNCIONÁRIO</th><th>PERÍODO</th><th>TURNO</th><th>MOTIVO</th><th></th></tr>' + ex.map(function (e) {
+    return '<tr><td><b>' + esc(e.nome) + '</b></td><td>' + br(e.ini) + (e.fim !== e.ini ? ' a ' + br(e.fim) : '') + '</td><td><span class="pill t-' + e.turno + '">' +
+      (e.turno === 'F' ? 'FOLGA' : rt(e.turno)) + '</span></td><td>' + esc(e.motivo) + '</td><td style="text-align:right">' +
+      '<button class="bt sec mini" onclick="excluirExcecao(' + e.linha + ',\'' + esc(e.cracha) + '\', this)">EXCLUIR</button></td></tr>';
+  }).join('') + '</table>';
+  c.innerHTML = h;
+}
+function abrirExcecao() {
+  document.getElementById('exPessoa').innerHTML = '<option value="">Escolha...</option>' + ADM.dados.pessoas.filter(function (p) { return p.ativo; })
+    .map(function (p) { return '<option value="' + esc(p.cracha) + '">' + esc(p.nome) + '</option>'; }).join('');
+  document.getElementById('exIni').value = ADM.hoje; document.getElementById('exFim').value = ADM.hoje;
+  document.getElementById('exMotivo').value = ''; document.getElementById('exErro').textContent = '';
+  ADM.exTurno = '';
+  Array.prototype.forEach.call(document.querySelectorAll('#exTurno button'), function (b) { b.classList.remove('sel'); });
+  document.getElementById('mExc').classList.remove('oculto');
+}
+Array.prototype.forEach.call(document.querySelectorAll('#exTurno button'), function (b) {
+  b.onclick = function () { ADM.exTurno = b.getAttribute('data-t');
+    Array.prototype.forEach.call(document.querySelectorAll('#exTurno button'), function (x) { x.classList.toggle('sel', x === b); }); };
+});
+function salvarExcecao() {
+  var e = { cracha: document.getElementById('exPessoa').value, ini: val('exIni'), fim: val('exFim'), turno: ADM.exTurno, motivo: val('exMotivo') };
+  var er = document.getElementById('exErro');
+  if (!e.cracha) return er.textContent = 'Escolha o funcionário.';
+  if (!e.turno) return er.textContent = 'Escolha o turno ou folga.';
+  erroAtual = function (m) { er.textContent = m; };
+  api('adminSalvarExcecao', [ADM.token, e], function (d) { ADM.dados = d; fechar('mExc'); carregarEscala(); toast('Exceção salva'); });
+}
+function excluirExcecao(linha, cracha, botao) {
+  if (botao.textContent !== 'CONFIRMAR') { botao.textContent = 'CONFIRMAR'; botao.style.background = 'var(--pen)'; botao.style.color = '#fff'; return; }
+  erroAtual = null;
+  api('adminExcluirExcecao', [ADM.token, linha, cracha], function (d) { ADM.dados = d; carregarEscala(); toast('Exceção excluída'); });
+}
+
+/* ----- Relatórios ----- */
+function renderRel() {
+  var c = document.getElementById('admConteudo');
+  c.innerHTML = '<div class="filtros"><div><label>DATA DO TURNO</label><input type="date" id="rlData" value="' + ADM.relDk + '"></div>' +
+    '<div><label>TURNO</label><select id="rlTurno" style="width:110px">' + ['A','B','C','D'].map(function (t) {
+      return '<option' + (t === ADM.relTurno ? ' selected' : '') + ' value="' + t + '">' + (t === 'D' ? '6x1' : t) + '</option>'; }).join('') + '</select></div>' +
+    '<button class="bt" onclick="previaRel()">PRÉ-VISUALIZAR E-MAIL</button><button class="bt verde" id="btEnviar" onclick="enviarRel()">ENVIAR AGORA</button></div>' +
+    '<div id="rlInfo"></div><iframe class="previa oculto" id="rlPrevia"></iframe>' +
+    '<div class="secao">Últimos envios</div><div id="rlHist"></div>';
+  api('adminHistoricoEnvios', [ADM.token], function (res) {
+    var h = res.envios;
+    if (res.falha) document.getElementById('rlInfo').innerHTML = '<div class="aviso" style="margin:0 0 12px;background:#FDECEA;border-left:6px solid var(--pen)">' +
+      'O envio automático do ' + rt(res.falha.turno) + ' de ' + esc(res.falha.data) + ' falhou (' + esc(res.falha.em) + '): ' + esc(res.falha.erro) + '</div>';
+    document.getElementById('rlHist').innerHTML = h.length ? '<table class="tabela"><tr><th>DATA</th><th>TURNO</th><th>ENVIADO EM</th><th>PARA</th><th>OCORR.</th><th>MODO</th></tr>' +
+      h.map(function (x) { return '<tr><td>' + esc(x.data) + '</td><td>' + esc(x.turno) + '</td><td>' + esc(x.em) + '</td><td style="font-size:12px">' + esc(x.para) +
+        '</td><td>' + esc(x.qtd) + '</td><td>' + esc(x.modo) + '</td></tr>'; }).join('') + '</table>' : '<div class="vazio" style="padding:14px">Nenhum envio ainda.</div>';
+  });
+}
+function lerRel() { ADM.relDk = val('rlData'); ADM.relTurno = document.getElementById('rlTurno').value; }
+function previaRel() {
+  lerRel();
+  api('adminPreviewRelatorio', [ADM.token, ADM.relDk, ADM.relTurno], function (r) {
+    var f = document.getElementById('rlPrevia'); f.classList.remove('oculto'); f.srcdoc = r.html;
+    document.getElementById('rlInfo').innerHTML = '<div class="resumo">' + (r.enviado ? 'Este turno <b>já foi enviado</b>. ' : '') +
+      'Destinatários: <b>' + (esc(r.emails) || 'nenhum cadastrado em Configurações') + '</b></div>';
+  });
+}
+function enviarRel() {
+  lerRel();
+  var b = document.getElementById('btEnviar');
+  if (b.textContent !== 'CONFIRMAR ENVIO') { b.textContent = 'CONFIRMAR ENVIO'; b.style.background = 'var(--pen)'; return; }
+  b.textContent = 'ENVIAR AGORA'; b.style.background = '';
+  erroAtual = null;
+  api('adminEnviarRelatorio', [ADM.token, ADM.relDk, ADM.relTurno], function (r) { toast('Relatório enviado'); renderRel(); });
+}
+
+/* ----- Configurações ----- */
+var CFG_CAMPOS = [
+  ['TURNO_A_INICIO','Turno A – início','time'],['TURNO_B_INICIO','Turno B – início','time'],['TURNO_C_INICIO','Turno C – início','time'],
+  ['TURNO_A_FIM','Turno A – fim','time'],['TURNO_B_FIM','Turno B – fim','time'],['TURNO_C_FIM','Turno C – fim (dia seguinte)','time'],
+  ['ENVIO_A','E-mail turno A às','time'],['ENVIO_B','E-mail turno B às','time'],['ENVIO_C','E-mail turno C às (dia seguinte)','time'],
+  ['TURNO_D_INICIO','6x1 – início','time'],['TURNO_D_FIM','6x1 – fim','time'],['ENVIO_D','E-mail 6x1 às','time'],
+  ['LOGOUT_MIN','Sair do tablet após X min parado','number'],['ENVIO_ATIVO','Envio automático','sel']
+];
+function renderCfg() {
+  var c = document.getElementById('admConteudo'), v = {};
+  ADM.dados.config.forEach(function (x) { v[x.chave] = x.valor; });
+  var h = '<div class="secao" style="margin-top:4px">Turnos e envio</div><div class="cfg">';
+  CFG_CAMPOS.forEach(function (f) {
+    h += '<div><label>' + f[1].toUpperCase() + '</label>' + (f[2] === 'sel'
+      ? '<select id="cf_' + f[0] + '"><option value="SIM"' + (v[f[0]] !== 'NAO' ? ' selected' : '') + '>Ligado</option><option value="NAO"' + (v[f[0]] === 'NAO' ? ' selected' : '') + '>Desligado</option></select>'
+      : '<input type="' + f[2] + '" id="cf_' + f[0] + '" value="' + esc(v[f[0]] || '') + '">') + '</div>';
+  });
+  h += '</div><label>E-MAILS DOS LÍDERES (separe por vírgula)</label><textarea id="cf_EMAILS_LIDERES" style="text-transform:none;min-height:70px">' + esc(v.EMAILS_LIDERES || '') + '</textarea>' +
+    '<label>E-MAIL DO ADMINISTRADOR (recebe aviso se o envio falhar)</label><input id="cf_EMAIL_ADMIN" style="text-transform:none" value="' + esc(v.EMAIL_ADMIN || '') + '">' +
+    '<label>NOME DA EQUIPE NO RELATÓRIO</label><input id="cf_EQUIPE" value="' + esc(v.EQUIPE || '') + '">' +
+    '<div class="erro" id="cfErro"></div><button class="bt" onclick="salvarCfg()">SALVAR CONFIGURAÇÕES</button>';
+  h += '<div class="secao">Trocar senha do administrador</div><div class="cfg">' +
+    '<div><label>SENHA ATUAL</label><input type="password" id="sAtual"></div><div><label>NOVA SENHA</label><input type="password" id="sNova"></div>' +
+    '<div><label>REPETIR NOVA SENHA</label><input type="password" id="sNova2"></div></div><div class="erro" id="sErro"></div>' +
+    '<button class="bt sec" onclick="trocarSenha()">TROCAR SENHA</button>';
+  c.innerHTML = h;
+}
+function salvarCfg() {
+  var o = {};
+  CFG_CAMPOS.forEach(function (f) { o[f[0]] = val('cf_' + f[0]); });
+  o.EMAILS_LIDERES = val('cf_EMAILS_LIDERES'); o.EMAIL_ADMIN = val('cf_EMAIL_ADMIN'); o.EQUIPE = val('cf_EQUIPE').toUpperCase();
+  erroAtual = function (m) { document.getElementById('cfErro').textContent = m; };
+  api('adminSalvarConfig', [ADM.token, o], function (d) { ADM.dados = d; renderCfg(); toast('Configurações salvas'); });
+}
+function trocarSenha() {
+  var e = document.getElementById('sErro');
+  if (val('sNova') !== val('sNova2')) return e.textContent = 'As senhas novas não conferem.';
+  erroAtual = function (m) { e.textContent = m; };
+  api('adminTrocarSenha', [ADM.token, document.getElementById('sAtual').value, document.getElementById('sNova').value], function () { renderCfg(); toast('Senha alterada'); });
+}
+
+function addDias(dk, n) { var d = new Date(dk + 'T12:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function difDias(a, b) { return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000); }
+
+/* ================= MODO DEMONSTRAÇÃO (só fora do Google) ================= */
+var DEMO = (function () {
+  var hoje = new Date(); var dk = hoje.getFullYear() + '-' + ('0' + (hoje.getMonth() + 1)).slice(-2) + '-' + ('0' + hoje.getDate()).slice(-2);
+  var oc = [
+    { id:'d1', dk:dk, turno:'A', cracha:'1001', nome:'ELETRICISTA EXEMPLO', equipamento:'CCMS', ocorrencia:'RONDA PARCIAL VERIFICANDO CCMS E ADIABÁTICOS', inicio:'07:00', fim:'08:00', status:'CONCLUIDO', descricao:'', lt:'', ordem:'40201020' },
+    { id:'d2', dk:dk, turno:'A', cracha:'1002', nome:'OUTRO ELETRICISTA', equipamento:'BBA 3 TORRE ETANOL', ocorrencia:'BLOQUEIO BBA 3 DA TORRE ETANOL', inicio:'08:20', fim:'09:00', status:'CONCLUIDO', descricao:'', lt:'LT-118', ordem:'', justificativa:'ATENDIMENTO EMERGENCIAL, ORDEM SERÁ ABERTA PELO PCM' }
+  ];
+  var pend = [{ id:'p1', abertaEm:'05/11/2026', dias:4, turno:'B', nome:'OUTRO ELETRICISTA', equipamento:'BBA FILTRO ÓLEO LUB', ocorrencia:'TROCA DO MOTOR DA BBA DE FILTRAR ÓLEO DA LUB', descricao:'AGUARDANDO MOTOR DO ALMOXARIFADO', lt:'', ordem:'40532292', statusOriginal:'PENDENTE' }];
+  function pacote() { return { ocorrencias: oc.slice(), pendencias: pend.slice(), enviado: false, equipamentos: ['BBA 3 TORRE ETANOL','CCMS','ESTEIRA TA04','CCM 4'] }; }
+  var api = {
+    identificar: function () { return { cracha:'1001', nome:'ELETRICISTA EXEMPLO', oficina:'INSTRUMENTAÇÃO', br:br(dk), turno:'A', dk:dk, escalaHoje:'A', foraEscala:false, logoutMin:5,
+      opcoes:{ A:{dk:dk,br:br(dk)}, B:{dk:dk,br:br(dk)}, C:{dk:dk,br:br(dk)}, D:{dk:dk,br:br(dk)} } }; },
+    carregarTurno: function () { return pacote(); },
+    salvarOcorrencia: function (c, d) {
+      d.ocorrencia = d.ocorrencia.toUpperCase(); d.descricao = d.descricao.toUpperCase(); d.justificativa = d.justificativa.toUpperCase(); d.equipamento = d.equipamento.toUpperCase();
+      if (d.id) { oc = oc.map(function (o) { return o.id === d.id ? Object.assign(o, d) : o; }); }
+      else { d.id = 'd' + Date.now(); d.cracha = '1001'; d.nome = 'ELETRICISTA EXEMPLO'; oc.push(d); }
+      return pacote(); },
+    excluirOcorrencia: function (c, id) { oc = oc.filter(function (o) { return o.id !== id; }); return pacote(); },
+    finalizarPendencia: function (c, id, t, k, d) { pend = pend.filter(function (p) { return p.id !== id; });
+      oc.push({ id:'f' + Date.now(), dk:dk, turno:'A', cracha:'1001', nome:'ELETRICISTA EXEMPLO', ocorrencia:'FINALIZAÇÃO DE PENDÊNCIA: ' + d.feito.toUpperCase(), inicio:d.inicio, fim:d.fim, status:'CONCLUIDO', descricao:'', lt:d.lt, ordem:d.ordem, justificativa:(d.justificativa||'').toUpperCase() });
+      return pacote(); }
+  };
+  var pess = [
+    { cracha:'1001', nome:'ELETRICISTA EXEMPLO', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:true },
+    { cracha:'1002', nome:'OUTRO ELETRICISTA', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:true },
+    { cracha:'1003', nome:'ELETRICISTA TURNO B', ciclo:'B,B,B,B,B,F', inicio:dk, ativo:true },
+    { cracha:'1004', nome:'ELETRICISTA TURNO C', ciclo:'C,C,C,C,C,F', inicio:dk, ativo:true },
+    { cracha:'1007', nome:'EXEMPLO 6X1', ciclo:'D,D,D,D,D,D,F', inicio:dk, ativo:true },
+    { cracha:'1005', nome:'FOLGUISTA EXEMPLO', ciclo:'B,B,C,C,F,F', inicio:dk, ativo:true },
+    { cracha:'1006', nome:'TERCEIRO TURNO A', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:false }];
+  var excs = [{ linha:2, ini:dk, fim:dk, cracha:'1003', nome:'ELETRICISTA TURNO B', turno:'F', motivo:'ATESTADO' }];
+  function dados() { return { pessoas:pess, excecoes:excs, config:[{chave:'TURNO_A_INICIO',valor:'07:00'},{chave:'TURNO_A_FIM',valor:'15:35'},{chave:'TURNO_B_INICIO',valor:'15:20'},
+    {chave:'TURNO_B_FIM',valor:'23:40'},{chave:'TURNO_C_INICIO',valor:'23:40'},{chave:'TURNO_C_FIM',valor:'07:00'},{chave:'ENVIO_A',valor:'15:50'},{chave:'TURNO_D_INICIO',valor:'07:00'},{chave:'TURNO_D_FIM',valor:'16:48'},{chave:'ENVIO_D',valor:'17:00'},{chave:'ENVIO_B',valor:'23:50'},{chave:'ENVIO_C',valor:'07:10'},
+    {chave:'EMAILS_LIDERES',valor:'lider@empresa.com'},{chave:'ENVIO_ATIVO',valor:'SIM'},{chave:'EQUIPE',valor:'EQUIPE DE MANUTENÇÃO ELÉTRICA'},{chave:'LOGOUT_MIN',valor:'5'}] }; }
+  Object.assign(api, {
+    adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
+    adminSair: function () { return true; },
+    adminDados: dados,
+    adminLancamentos: function () { var p = pacote(); p.escalados = [{cracha:'1001',nome:'ELETRICISTA EXEMPLO'},{cracha:'1002',nome:'OUTRO ELETRICISTA'},{cracha:'1006',nome:'TERCEIRO TURNO A'}]; return p; },
+    adminSalvarOcorrencia: function (t, d) { api.salvarOcorrencia('', d); return api.adminLancamentos(); },
+    adminExcluirOcorrencia: function (t, id) { api.excluirOcorrencia('', id); return api.adminLancamentos(); },
+    adminCancelarPendencia: function (t, id) { pend = pend.filter(function (p) { return p.id !== id; }); return api.adminLancamentos(); },
+    adminSalvarPessoa: function (t, p, o) { p.ativo = p.ativo !== false; pess = pess.filter(function (x) { return x.cracha !== o; }); pess.push(p); return dados(); },
+    adminEscala: function (t, ini) { var datas = []; for (var i = 0; i < 14; i++) datas.push(addDias(ini, i));
+      var linhas = pess.filter(function (p) { return p.ativo; }).map(function (p) { var c = p.ciclo.split(','); return { nome:p.nome, cracha:p.cracha, dias: datas.map(function (d) {
+        var ex = excs.filter(function (e) { return e.cracha === p.cracha && d >= e.ini && d <= e.fim; })[0];
+        return { t: ex ? ex.turno : c[((difDias(p.inicio, d) % c.length) + c.length) % c.length], exc: !!ex }; }) }; });
+      return { datas:datas, linhas:linhas, totais: datas.map(function (d, i) { var x = {A:0,B:0,C:0,D:0}; linhas.forEach(function (l) { if (x[l.dias[i].t] !== undefined) x[l.dias[i].t]++; }); return x; }) }; },
+    adminSalvarExcecao: function (t, e) { e.linha = excs.length + 2; e.nome = pess.filter(function (p) { return p.cracha === e.cracha; })[0].nome; excs.push(e); return dados(); },
+    adminExcluirExcecao: function (t, l) { excs = excs.filter(function (e) { return e.linha !== l; }); return dados(); },
+    adminPreviewRelatorio: function () { return { html:'<p style="font-family:sans-serif;padding:20px">Pré-visualização do e-mail (no Google aparece o relatório real).</p>', enviado:false, emails:'lider@empresa.com' }; },
+    adminEnviarRelatorio: function () { return { ok:true }; },
+    adminHistoricoEnvios: function () { return { envios: [], falha: null }; },
+    adminSalvarConfig: function () { return dados(); },
+    adminTrocarSenha: function () { return true; }
+  });
+  var r = { _ok:null, _err:null };
+  r.withSuccessHandler = function (f) { r._ok = f; return r; };
+  r.withFailureHandler = function (f) { r._err = f; return r; };
+  Object.keys(api).forEach(function (k) { r[k] = function () { var a = arguments, ok = r._ok, er = r._err;
+    setTimeout(function () { try { var v = api[k].apply(null, a); } catch (e) { return er(e); } ok(v); }, 150); }; });
+  return r;
+})();
+</script>
+</body>
+</html>
