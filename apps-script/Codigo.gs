@@ -485,7 +485,8 @@ function validar_(d) {
   d.status = String(d.status || '').toUpperCase();
   if (d.ocorrencia.length < 5) throw new Error('Descreva a ocorrência.');
   if (!d.inicio) throw new Error('Informe a hora de início.');
-  if (['CONCLUIDO', 'ANDAMENTO', 'PENDENTE'].indexOf(d.status) < 0) throw new Error('Escolha o status.');
+  // PENDENTE saiu das opções; só continua aceito para lançamentos antigos que já estavam assim
+  if (['CONCLUIDO', 'ANDAMENTO'].indexOf(d.status) < 0 && !(d.status === 'PENDENTE' && d.id)) throw new Error('Escolha o status: Concluído ou Andamento.');
   if (d.status === 'CONCLUIDO' && !d.fim) throw new Error('Informe a hora de fim.');
   if (d.status !== 'CONCLUIDO' && !d.ref && d.descricao.length < 5) throw new Error('Descreva a pendência.');
   d.justificativa = d.ordem ? '' : String(d.justificativa || '').trim().toUpperCase();
