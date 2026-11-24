@@ -188,7 +188,7 @@
   <div class="modal">
     <h2 id="fTitulo">Nova ocorrência</h2>
     <div class="ctx" id="fCtx"></div>
-    <div id="boxPessoa" class="oculto"><label>ELETRICISTA</label><select id="fPessoa"></select></div>
+    <div id="boxPessoa" class="oculto"><label>FUNCIONÁRIO</label><select id="fPessoa"></select></div>
     <label>EQUIPAMENTO / TAG</label>
     <input id="fEquip" list="listaEquip" autocomplete="off" placeholder="Ex.: BBA 3 TORRE ETANOL, ESTEIRA TA04, CCM 4">
     <datalist id="listaEquip"></datalist>
@@ -554,7 +554,7 @@ function abrirForm(id, admin) {
   document.getElementById('boxPessoa').classList.toggle('oculto', !(admin && !o));
   if (admin && !o) {
     var esc_ = {}; ADM.lanc.escalados.forEach(function (p) { esc_[p.cracha] = 1; });
-    var lista = ADM.dados.pessoas.filter(function (p) { return p.ativo; })
+    var lista = ADM.dados.pessoas.filter(function (p) { return p.ativo && (!ADM.lancOf || (p.oficina || 'SEM OFICINA') === ADM.lancOf); })
       .sort(function (a, b) { return (esc_[b.cracha] || 0) - (esc_[a.cracha] || 0) || (a.nome < b.nome ? -1 : 1); });
     document.getElementById('fPessoa').innerHTML = '<option value="">Escolha...</option>' + lista.map(function (p) {
       return '<option value="' + esc(p.cracha) + '">' + esc(p.nome) + (esc_[p.cracha] ? ' (escalado)' : '') + '</option>'; }).join('');
@@ -770,28 +770,47 @@ function carregarLanc() {
   var c = document.getElementById('admConteudo');
   var dEl = document.getElementById('alData');
   if (dEl) { ADM.dk = dEl.value; ADM.turno = document.getElementById('alTurno').value; }
+  var oEl = document.getElementById('alOf'); if (oEl) ADM.lancOf = oEl.value;
   api('adminLancamentos', [ADM.token, ADM.dk, ADM.turno], function (r) { ADM.lanc = r; renderLanc(); });
 }
 
 function renderLanc() {
   var r = ADM.lanc, c = document.getElementById('admConteudo');
-  var lancou = {}; r.ocorrencias.forEach(function (o) { lancou[o.cracha] = 1; });
-  var faltam = r.escalados.filter(function (p) { return !lancou[p.cracha]; });
-  var h = seletorDataTurno('al', ADM.dk, ADM.turno, 'carregarLanc()');
-  h += '<div class="resumo"><b>' + r.ocorrencias.length + '</b> ocorrência(s) · <b>' + Object.keys(lancou).length + '</b> de <b>' + r.escalados.length +
-    '</b> escalados lançaram · relatório ' + (r.enviado ? '<b style="color:var(--ok)">já enviado</b>' : '<b>ainda não enviado</b>') +
-    (faltam.length ? '<br>Não lançaram: ' + faltam.map(function (p) { return '<span class="chip">' + esc(p.nome) + '</span>'; }).join('') : '') + '</div>';
-  h += '<div class="barraNova"><button onclick="abrirForm(null, true)">+ LANÇAR POR UM ELETRICISTA</button></div>';
-  if (!r.ocorrencias.length) h += '<div class="vazio">Nenhum lançamento neste turno.</div>';
-  var atual = null;
-  r.ocorrencias.forEach(function (o) {
-    if (o.nome !== atual) { atual = o.nome; h += '<div class="grupo">' + esc(o.nome) + '</div>'; }
-    h += cartao(o, false).replace(/<\/div>$/, '<div class="acoes"><button onclick="abrirForm(\'' + o.id + '\', true)">EDITAR</button></div></div>');
-  });
-  h += '<div class="secao">Pendências em aberto (' + r.pendencias.length + ')</div>';
-  if (!r.pendencias.length) h += '<div class="vazio" style="padding:14px">Nenhuma pendência em aberto.</div>';
-  r.pendencias.forEach(function (p) {
-    h += cartaoPend(p).replace(/<button class="fin"[^<]*<\/button>/, '<button style="background:#fdecea;color:var(--pen)" onclick="cancelarPend(\'' + p.id + '\')">CANCELAR</button>');
+  var lista = {};
+  r.escalados.forEach(function (p) { lista[p.oficina] = 1; });
+  r.ocorrencias.forEach(function (o) { lista[o.oficina] = 1; });
+  r.pendencias.forEach(function (p) { lista[p.oficina] = 1; });
+  (ADM.dados.oficinas || []).forEach(function (o) { lista[o.nome] = 1; });
+  var todas = Object.keys(lista).sort();
+  if (ADM.lancOf && todas.indexOf(ADM.lancOf) < 0) ADM.lancOf = '';
+  var h = seletorDataTurno('al', ADM.dk, ADM.turno, 'carregarLanc()').replace('<button class="bt"',
+    '<div><label>OFICINA</label><select id="alOf" style="width:200px" onchange="ADM.lancOf=this.value;renderLanc()"><option value="">TODAS</option>' +
+    todas.map(function (o) { return '<option' + (o === ADM.lancOf ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select></div><button class="bt"');
+  h += '<div class="barraNova"><button onclick="abrirForm(null, true)">+ LANÇAR POR UM FUNCIONÁRIO</button></div>';
+  var mostrar = ADM.lancOf ? [ADM.lancOf] : todas;
+  if (!mostrar.length) h += '<div class="vazio">Nenhum funcionário escalado neste turno.</div>';
+  mostrar.forEach(function (of) {
+    var ocos = r.ocorrencias.filter(function (o) { return o.oficina === of; });
+    var esc_ = r.escalados.filter(function (p) { return p.oficina === of; });
+    var pend = r.pendencias.filter(function (p) { return p.oficina === of; });
+    var lancou = {}; ocos.forEach(function (o) { lancou[o.cracha] = 1; });
+    var faltam = esc_.filter(function (p) { return !lancou[p.cracha]; });
+    var enviado = (r.enviadoOf || {})[of];
+    h += '<div class="secao" style="font-size:19px;border-bottom:3px solid var(--azul);padding-bottom:6px;margin-top:18px">OFICINA ' + esc(of) + '</div>';
+    h += '<div class="resumo"><b>' + ocos.length + '</b> ocorrência(s) · <b>' + Object.keys(lancou).length + '</b> de <b>' + esc_.length +
+      '</b> escalados lançaram · relatório ' + (enviado ? '<b style="color:var(--ok)">já enviado</b>' : '<b>ainda não enviado</b>') +
+      (faltam.length ? '<br>Não lançaram: ' + faltam.map(function (p) { return '<span class="chip">' + esc(p.nome) + '</span>'; }).join('') : '') + '</div>';
+    if (!ocos.length) h += '<div class="vazio" style="padding:14px">Nenhum lançamento neste turno.</div>';
+    var atual = null;
+    ocos.forEach(function (o) {
+      if (o.nome !== atual) { atual = o.nome; h += '<div class="grupo">' + esc(o.nome) + '</div>'; }
+      h += cartao(o, false).replace(/<\/div>$/, '<div class="acoes"><button onclick="abrirForm(\'' + o.id + '\', true)">EDITAR</button></div></div>');
+    });
+    h += '<div class="secao" style="font-size:14px">Pendências em aberto – ' + esc(of) + ' (' + pend.length + ')</div>';
+    if (!pend.length) h += '<div class="vazio" style="padding:10px">Nenhuma pendência em aberto.</div>';
+    pend.forEach(function (p) {
+      h += cartaoPend(p).replace(/<button class="fin"[^<]*<\/button>/, '<button style="background:#fdecea;color:var(--pen)" onclick="cancelarPend(\'' + p.id + '\')">CANCELAR</button>');
+    });
   });
   c.innerHTML = h;
 }
@@ -1049,7 +1068,7 @@ var DEMO = (function () {
   };
   var pess = [
     { cracha:'1001', nome:'ELETRICISTA EXEMPLO', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:true },
-    { cracha:'1002', nome:'OUTRO ELETRICISTA', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:true },
+    { cracha:'1002', nome:'OUTRO ELETRICISTA', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:true, oficina:'INS' },
     { cracha:'1003', nome:'ELETRICISTA TURNO B', ciclo:'B,B,B,B,B,F', inicio:dk, ativo:true },
     { cracha:'1004', nome:'ELETRICISTA TURNO C', ciclo:'C,C,C,C,C,F', inicio:dk, ativo:true },
     { cracha:'1007', nome:'EXEMPLO 6X1', ciclo:'D,D,D,D,D,D,F', inicio:dk, ativo:true },
@@ -1063,7 +1082,8 @@ var DEMO = (function () {
     adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
     adminSair: function () { return true; },
     adminDados: dados,
-    adminLancamentos: function () { var p = pacote(); p.escalados = [{cracha:'1001',nome:'ELETRICISTA EXEMPLO'},{cracha:'1002',nome:'OUTRO ELETRICISTA'},{cracha:'1006',nome:'TERCEIRO TURNO A'}]; return p; },
+    adminLancamentos: function () { var p = pacote(); p.ocorrencias.forEach(function (o, i) { o.oficina = i % 2 ? 'INS' : 'ELE'; }); p.pendencias.forEach(function (x) { x.oficina = 'INS'; });
+      p.escalados = [{cracha:'1001',nome:'ELETRICISTA EXEMPLO',oficina:'ELE'},{cracha:'1002',nome:'OUTRO ELETRICISTA',oficina:'INS'},{cracha:'1006',nome:'TERCEIRO TURNO A',oficina:'ELE'}]; p.enviadoOf = {ELE:true, INS:false}; return p; },
     adminSalvarOcorrencia: function (t, d) { api.salvarOcorrencia('', d); return api.adminLancamentos(); },
     adminExcluirOcorrencia: function (t, id) { api.excluirOcorrencia('', id); return api.adminLancamentos(); },
     adminCancelarPendencia: function (t, id) { pend = pend.filter(function (p) { return p.id !== id; }); return api.adminLancamentos(); },

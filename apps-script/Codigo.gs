@@ -951,7 +951,9 @@ function adminLancamentos(token, dk, turno) {
   if (TURNOS.indexOf(turno) < 0 || !paraDk(dk)) throw new Error('Escolha data e turno.');
   const r = carregarTurno('', turno, paraDk(dk));
   const excs = excecoes_();
-  r.escalados = escalados_(paraDk(dk), turno, pessoas_(), excs).map(function (p) { return { cracha: p.cracha, nome: p.nome }; });
+  r.escalados = escalados_(paraDk(dk), turno, pessoas_(), excs).map(function (p) { return { cracha: p.cracha, nome: p.nome, oficina: normOf_(p.oficina) }; });
+  r.enviadoOf = {};
+  oficinasDoTurno_(paraDk(dk), turno).forEach(function (of) { r.enviadoOf[of] = jaEnviado_(paraDk(dk), turno, of); });
   return r;
 }
 
