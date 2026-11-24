@@ -136,6 +136,18 @@
   select{font-family:inherit;font-size:17px;padding:12px;border:2px solid var(--borda);border-radius:10px;width:100%;background:#fff}
   .eq{display:inline-block;background:#E3F0FB;color:var(--azul);border-radius:6px;padding:1px 8px;margin-right:8px;font-size:13px;font-weight:700}
   .trava{font-size:12px;font-weight:700;color:var(--suave);background:var(--fundo);border-radius:9px;padding:9px 12px;white-space:nowrap}
+  /* ---------- LÍDER ---------- */
+  header.lid{background:#00267a}
+  .turnosL{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .turnosL button{flex:1;min-width:120px;padding:12px;border-radius:10px;font-weight:700;background:var(--fundo);color:var(--azul);border:3px solid transparent;line-height:1.2}
+  .turnosL button small{display:block;font-weight:400;font-size:12px;color:var(--suave)}
+  .turnosL button.ativo{border-color:var(--azul);background:#E3F0FB}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .kpi{border:1px solid var(--borda);border-radius:12px;padding:12px;text-align:center}
+  .kpi b{display:block;font-size:28px;color:var(--azul)}
+  .kpi span{font-size:12px;color:var(--suave);font-weight:600}
+  .barra{background:var(--fundo);border-radius:6px;height:12px;min-width:80px;overflow:hidden}
+  .barra i{display:block;height:100%;background:var(--verde)}
 </style>
 </head>
 <body>
@@ -149,6 +161,21 @@
   <div class="teclado" id="teclado"></div>
   <div id="msgLogin"></div>
   <button class="linkAdmin" onclick="abrirSenha()">ADMINISTRADOR</button>
+</section>
+
+<!-- ============ LÍDER ============ -->
+<section id="telaLider" class="oculto">
+  <header class="lid">
+    <div class="quem"><b id="lNome"></b><span id="lInfo"></span></div>
+    <div><input type="date" id="lData" onchange="liderCarregar(this.value)" style="font-size:15px;padding:8px;border-radius:10px;border:0;width:auto;text-transform:none"></div>
+    <button class="sair" onclick="sair()">SAIR</button>
+  </header>
+  <nav id="navLider">
+    <button data-aba="turno" onclick="liderAba('turno')">TURNO</button>
+    <button data-aba="pend" onclick="liderAba('pend')">PENDÊNCIAS <span class="bolha" id="lQtdPend">0</span></button>
+    <button data-aba="dash" onclick="liderAba('dash')">DASHBOARD</button>
+  </nav>
+  <main id="lConteudo"></main>
 </section>
 
 <!-- ============ ADMIN ============ -->
@@ -279,11 +306,13 @@
       <option value="B,B,B,B,B,F">Turno B – 5x1</option>
       <option value="C,C,C,C,C,F">Turno C – 5x1</option>
       <option value="B,B,C,C,F,F">Folguista – 2 B, 2 C, 2 folgas</option>
+      <option value="SEM">Sem escala (só líder)</option>
       <option value="">Personalizada...</option>
     </select>
     <div id="boxCiclo" class="oculto"><label>CICLO PERSONALIZADO (um item por dia: A, B, C, D=6x1 ou F=folga)</label><input id="pfCiclo" placeholder="EX.: A,A,A,A,A,A,F"></div>
     <div class="linha">
       <div><label>1º DIA DE SERVIÇO (1º dia de trabalho após uma folga)</label><input type="date" id="pfInicio"></div>
+      <div><label>PERFIL</label><select id="pfPerfil"><option value="COLABORADOR">Colaborador</option><option value="LIDER">Líder</option></select></div>
       <div><label>SITUAÇÃO</label><select id="pfAtivo"><option value="SIM">Ativo</option><option value="NAO">Inativo</option></select></div>
     </div>
     <div class="ctx" id="pfPrevia" style="margin-top:10px"></div>
@@ -329,6 +358,7 @@
       <tr><td style="color:var(--suave);width:110px">Nome</td><td><b id="cfNome"></b></td></tr>
       <tr><td style="color:var(--suave)">Turno</td><td><b id="cfTurno"></b></td></tr>
       <tr><td style="color:var(--suave)">Oficina</td><td><b id="cfOficina"></b></td></tr>
+      <tr id="cfLiderLinha" class="oculto"><td style="color:var(--suave)">Perfil</td><td><b>LÍDER</b></td></tr>
     </table>
     <div class="botoes"><button class="b-sec" onclick="voltarLogin()">VOLTAR</button><button class="b-pri" onclick="confirmarLogin()">OK</button></div>
   </div>
@@ -401,6 +431,8 @@ function entrar() {
     document.getElementById('cfNome').textContent = u.nome;
     document.getElementById('cfTurno').textContent = rt(u.turno) + ' · ' + u.br + (u.foraEscala ? ' (fora da sua escala)' : '');
     document.getElementById('cfOficina').textContent = u.oficina || '—';
+    document.getElementById('cfLiderLinha').classList.toggle('oculto', !u.lider);
+    document.getElementById('cfTurno').parentNode.parentNode.classList.toggle('oculto', !!u.lider);
     document.getElementById('mConf').classList.remove('oculto');
   });
 }
@@ -409,6 +441,7 @@ function voltarLogin() { PEND_LOGIN = null; fechar('mConf'); digitado = ''; tecl
 function confirmarLogin() {
   var u = PEND_LOGIN; if (!u) return;
   PEND_LOGIN = null; fechar('mConf');
+  if (u.lider) return entrarLider(u);
   (function () {
     S.user = u; S.cracha = u.cracha; S.turno = u.turno; S.dk = u.dk; S.aba = 'minhas';
     digitado = ''; tecla('');
@@ -428,6 +461,7 @@ function sair() {
   S = { cracha:'', user:null, turno:'', dk:'', dados:null, aba:'minhas', editId:null, status:'', pendId:null };
   ['mOco','mFin'].forEach(fechar);
   document.getElementById('telaPrincipal').classList.add('oculto');
+  document.getElementById('telaLider').classList.add('oculto'); LID = null;
   document.getElementById('telaLogin').classList.remove('oculto');
   clearTimeout(timerOcioso);
 }
@@ -718,6 +752,126 @@ document.getElementById('fOrdem').addEventListener('input', function () { this.v
 document.getElementById('pOrdem').addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); mostrarJust('pOrdem', 'boxPJust'); });
 
 
+
+/* ================= LÍDER ================= */
+var LID = null;
+function entrarLider(u) {
+  LID = { user: u, aba: 'turno', turno: null, dados: null };
+  S.user = u; S.cracha = u.cracha;
+  digitado = ''; tecla('');
+  document.getElementById('telaLogin').classList.add('oculto');
+  document.getElementById('telaLider').classList.remove('oculto');
+  document.getElementById('lNome').textContent = u.nome;
+  liderCarregar('');
+  reiniciarOcioso();
+}
+function liderCarregar(dk) {
+  erroAtual = null;
+  api('liderPainel', [LID.user.cracha, dk], function (d) {
+    LID.dados = d;
+    if (!LID.turno) LID.turno = d.turnoAtual;
+    document.getElementById('lData').value = d.dk;
+    document.getElementById('lInfo').textContent = 'Líder · Oficina ' + d.oficina + ' · ' + d.br;
+    document.getElementById('lQtdPend').textContent = d.pendencias.length;
+    liderAba(LID.aba);
+  });
+}
+function liderAba(a) {
+  LID.aba = a;
+  Array.prototype.forEach.call(document.querySelectorAll('#navLider button'), function (b) { b.classList.toggle('ativo', b.getAttribute('data-aba') === a); });
+  if (!LID.dados) return;
+  var c = document.getElementById('lConteudo');
+  c.innerHTML = a === 'turno' ? liderTurnoHtml() : a === 'pend' ? liderPendHtml() : liderDashHtml();
+}
+function semAcoes(html) { return html.replace(/<div class="acoes">[\s\S]*?<\/div><\/div>$/, '</div>'); }
+
+/* ----- Turno ----- */
+function liderTurnoHtml() {
+  var d = LID.dados, t = LID.turno;
+  var h = '<div class="turnosL">' + ['A','B','C','D'].map(function (x) {
+    var n = d.ocorrencias.filter(function (o) { return o.turno === x; }).length;
+    return '<button class="' + (x === t ? 'ativo' : '') + '" onclick="LID.turno=\'' + x + '\';liderAba(\'turno\')">' + rt(x) +
+      '<small>' + esc(d.janelas[x]) + ' · ' + n + ' lanç.</small></button>';
+  }).join('') + '</div>';
+  var ocos = d.ocorrencias.filter(function (o) { return o.turno === t; }).sort(function (a, b) { return a.nome < b.nome ? -1 : a.nome > b.nome ? 1 : (a.inicio < b.inicio ? -1 : 1); });
+  var esc_ = d.escalados.filter(function (p) { return p.turno === t; });
+  var lancou = {}; ocos.forEach(function (o) { lancou[o.cracha] = 1; });
+  var faltam = esc_.filter(function (p) { return !lancou[p.cracha]; });
+  h += '<div class="resumo"><b>' + ocos.length + '</b> ocorrência(s) · <b>' + Object.keys(lancou).length + '</b> de <b>' + esc_.length +
+    '</b> escalados lançaram · relatório ' + (d.enviado[t] ? '<b style="color:var(--ok)">já enviado</b>' : '<b>ainda não enviado</b>') +
+    (faltam.length ? '<br>Não lançaram: ' + faltam.map(function (p) { return '<span class="chip">' + esc(p.nome) + '</span>'; }).join('') : '') + '</div>';
+  if (!ocos.length) return h + '<div class="vazio">Nenhum lançamento neste turno.</div>';
+  var atual = null;
+  ocos.forEach(function (o) {
+    if (o.nome !== atual) { atual = o.nome; h += '<div class="grupo">' + esc(o.nome) + (d.oficina === 'TODAS' ? ' · ' + esc(o.oficina) : '') + '</div>'; }
+    h += cartao(o, false);
+  });
+  return h;
+}
+
+/* ----- Pendências ----- */
+function liderPendHtml() {
+  var p = LID.dados.pendencias;
+  if (!p.length) return '<div class="vazio">Nenhum serviço em andamento.</div>';
+  return '<div class="resumo"><b>' + p.length + '</b> serviço(s) em andamento · mais antigo: <b>' + p[0].dias + '</b> dia(s)</div>' +
+    p.map(function (x) { return semAcoes(cartaoPend(x)); }).join('');
+}
+
+/* ----- Dashboard ----- */
+function minutos(o) {
+  var a = minT0(o.inicio), b = minT0(o.fim);
+  if (a === null || b === null) return 0;
+  if (b < a) b += 1440;
+  return b - a;
+}
+function minT0(hm) { if (!hm) return null; var p = hm.split(':'); return (+p[0]) * 60 + (+p[1]); }
+function hh(m) { return Math.floor(m / 60) + 'h' + ('0' + (m % 60)).slice(-2); }
+function liderDashHtml() {
+  var d = LID.dados, o = d.ocorrencias;
+  var conc = o.filter(function (x) { return x.status === 'CONCLUIDO'; }).length;
+  var and = o.length - conc;
+  var semOrdem = o.filter(function (x) { return !x.ordem; }).length;
+  var totMin = o.reduce(function (s, x) { return s + minutos(x); }, 0);
+  var escalados = {}; d.escalados.forEach(function (p) { escalados[p.cracha] = p; });
+  var pessoas = {};
+  d.escalados.forEach(function (p) { pessoas[p.cracha] = { nome: p.nome, turno: p.turno, n: 0, conc: 0, and: 0, min: 0, sem: 0, ini: '', fim: '' }; });
+  o.forEach(function (x) {
+    var p = pessoas[x.cracha] || (pessoas[x.cracha] = { nome: x.nome, turno: x.turno, n: 0, conc: 0, and: 0, min: 0, sem: 0, ini: '', fim: '' });
+    p.n++; if (x.status === 'CONCLUIDO') p.conc++; else p.and++;
+    p.min += minutos(x); if (!x.ordem) p.sem++;
+    if (!p.ini || x.inicio < p.ini) p.ini = x.inicio;
+    if (x.fim && (!p.fim || x.fim > p.fim)) p.fim = x.fim;
+  });
+  var lista = Object.keys(pessoas).map(function (k) { return pessoas[k]; }).sort(function (a, b) { return a.turno < b.turno ? -1 : a.turno > b.turno ? 1 : b.min - a.min; });
+  var lancaram = lista.filter(function (p) { return p.n > 0; }).length;
+  var maxMin = Math.max.apply(null, lista.map(function (p) { return p.min; }).concat([1]));
+  var kpi = function (v, r, cor) { return '<div class="kpi"><b' + (cor ? ' style="color:' + cor + '"' : '') + '>' + v + '</b><span>' + r + '</span></div>'; };
+  var h = '<div class="secao" style="margin-top:4px">Resumo do dia ' + esc(d.br) + '</div><div class="kpis">' +
+    kpi(o.length, 'OCORRÊNCIAS') + kpi(conc, 'CONCLUÍDAS', 'var(--ok)') + kpi(and, 'EM ANDAMENTO', '#B38F00') +
+    kpi(hh(totMin), 'HORAS LANÇADAS') + kpi(lancaram + ' / ' + d.escalados.length, 'LANÇARAM / ESCALADOS') +
+    kpi(semOrdem, 'SEM ORDEM', semOrdem ? '#FF9421' : '') + kpi(d.pendencias.length, 'PENDÊNCIAS ABERTAS', d.pendencias.length ? 'var(--pen)' : '') + '</div>';
+  h += '<div class="secao">Por turno</div><table class="tabela"><tr><th>TURNO</th><th>OCORR.</th><th>CONCLUÍDAS</th><th>ANDAMENTO</th><th>HORAS</th><th>LANÇARAM / ESCALADOS</th><th>RELATÓRIO</th></tr>';
+  ['A','B','C','D'].forEach(function (t) {
+    var ot = o.filter(function (x) { return x.turno === t; });
+    var et = d.escalados.filter(function (p) { return p.turno === t; });
+    var lt = {}; ot.forEach(function (x) { lt[x.cracha] = 1; });
+    var ct = ot.filter(function (x) { return x.status === 'CONCLUIDO'; }).length;
+    h += '<tr><td><b>' + rt(t) + '</b></td><td>' + ot.length + '</td><td>' + ct + '</td><td>' + (ot.length - ct) + '</td><td>' +
+      hh(ot.reduce(function (s, x) { return s + minutos(x); }, 0)) + '</td><td>' + Object.keys(lt).length + ' / ' + et.length + '</td><td>' +
+      (d.enviado[t] ? '<span style="color:var(--ok);font-weight:700">Enviado</span>' : '—') + '</td></tr>';
+  });
+  h += '</table><div class="secao">Por pessoa</div>';
+  if (!lista.length) return h + '<div class="vazio">Ninguém escalado ou com lançamento neste dia.</div>';
+  h += '<table class="tabela"><tr><th>NOME</th><th>TURNO</th><th>OCORR.</th><th>CONCL.</th><th>ANDAM.</th><th>SEM ORDEM</th><th>HORAS</th><th style="width:22%"></th><th>1º / ÚLTIMO</th></tr>';
+  lista.forEach(function (p) {
+    h += '<tr' + (p.n ? '' : ' style="background:#FDECEA"') + '><td><b>' + esc(p.nome) + '</b>' + (escalados[Object.keys(pessoas).filter(function (k) { return pessoas[k] === p; })[0]] ? '' : ' <small style="color:var(--suave)">(fora da escala)</small>') +
+      '</td><td>' + rt(p.turno) + '</td><td>' + (p.n || '<b style="color:var(--pen)">0</b>') + '</td><td>' + p.conc + '</td><td>' + p.and + '</td><td>' + (p.sem || '') +
+      '</td><td>' + hh(p.min) + '</td><td><div class="barra"><i style="width:' + Math.round(p.min / maxMin * 100) + '%"></i></div></td><td>' +
+      (p.ini ? esc(p.ini) + ' – ' + esc(p.fim || '…') : '—') + '</td></tr>';
+  });
+  return h + '</table>';
+}
+
 /* ================= ADMINISTRADOR ================= */
 var ADM = { token:null };
 var DIAS_SEM = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
@@ -840,7 +994,7 @@ function renderFunc(filtro) {
   h += '<div class="resumo">' + ADM.dados.pessoas.filter(function (p) { return p.ativo; }).length + ' ativos · ' + ADM.dados.pessoas.length + ' cadastrados</div>';
   h += '<table class="tabela"><tr><th>CRACHÁ</th><th>NOME</th><th>OFICINA</th><th>ESCALA</th><th>1º DIA DE SERVIÇO</th><th>SITUAÇÃO</th><th></th></tr>';
   lista.forEach(function (p) {
-    h += '<tr class="' + (p.ativo ? '' : 'inativo') + '"><td>' + esc(p.cracha) + '</td><td><b>' + esc(p.nome) + '</b></td><td>' + esc(p.oficina || '-') + '</td><td>' + esc(nomeCiclo(p.ciclo)) +
+    h += '<tr class="' + (p.ativo ? '' : 'inativo') + '"><td>' + esc(p.cracha) + '</td><td><b>' + esc(p.nome) + (p.lider ? ' <span class="pill" style="background:var(--azul);color:#fff">LÍDER</span>' : '') + '</b></td><td>' + esc(p.oficina || '-') + '</td><td>' + esc(p.ciclo ? nomeCiclo(p.ciclo) : '—') +
       '</td><td>' + (p.inicio ? br(p.inicio) : '-') + '</td><td>' + (p.ativo ? 'Ativo' : 'Inativo') +
       '</td><td style="text-align:right"><button class="bt sec mini" onclick="abrirPessoa(\'' + esc(p.cracha) + '\')">EDITAR</button></td></tr>';
   });
@@ -863,11 +1017,13 @@ function abrirPessoa(cracha) {
   document.getElementById('pfCiclo').value = p ? p.ciclo : '';
   document.getElementById('pfInicio').value = p ? p.inicio : ADM.hoje;
   document.getElementById('pfAtivo').value = p && !p.ativo ? 'NAO' : 'SIM';
+  document.getElementById('pfPerfil').value = p && p.lider ? 'LIDER' : 'COLABORADOR';
+  if (p && p.lider && !p.ciclo) preset.value = 'SEM';
   document.getElementById('pfErro').textContent = '';
   presetCiclo();
   document.getElementById('mPessoa').classList.remove('oculto');
 }
-function cicloAtual() { return document.getElementById('pfPreset').value || val('pfCiclo').toUpperCase(); }
+function cicloAtual() { var v = document.getElementById('pfPreset').value; return v === 'SEM' ? '' : (v || val('pfCiclo').toUpperCase()); }
 function presetCiclo() {
   document.getElementById('boxCiclo').classList.toggle('oculto', !!document.getElementById('pfPreset').value);
   previaCiclo();
@@ -888,7 +1044,9 @@ document.getElementById('pfCiclo').addEventListener('input', previaCiclo);
 document.getElementById('pfCracha').addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); });
 
 function salvarPessoa() {
-  var p = { cracha: val('pfCracha'), nome: val('pfNome'), oficina: val('pfOficina').toUpperCase(), ciclo: cicloAtual(), inicio: val('pfInicio'), ativo: document.getElementById('pfAtivo').value === 'SIM' };
+  var p = { cracha: val('pfCracha'), nome: val('pfNome'), oficina: val('pfOficina').toUpperCase(), ciclo: cicloAtual(), inicio: val('pfInicio'), ativo: document.getElementById('pfAtivo').value === 'SIM',
+    lider: document.getElementById('pfPerfil').value === 'LIDER' };
+  if (!p.ciclo && !p.lider) { document.getElementById('pfErro').textContent = 'Só líder pode ficar sem escala.'; return; }
   erroAtual = function (m) { document.getElementById('pfErro').textContent = m; };
   api('adminSalvarPessoa', [ADM.token, p, ADM.pessoaOrig], function (d) { ADM.dados = d; fechar('mPessoa'); renderFunc(); toast('Funcionário salvo'); });
 }
@@ -1051,7 +1209,8 @@ var DEMO = (function () {
   var pend = [{ id:'p1', abertaEm:'05/11/2026', dias:4, turno:'B', nome:'OUTRO ELETRICISTA', equipamento:'BBA FILTRO ÓLEO LUB', ocorrencia:'TROCA DO MOTOR DA BBA DE FILTRAR ÓLEO DA LUB', descricao:'AGUARDANDO MOTOR DO ALMOXARIFADO', lt:'', ordem:'40532292', statusOriginal:'PENDENTE' }];
   function pacote() { return { ocorrencias: oc.slice(), pendencias: pend.slice(), enviado: false, equipamentos: ['BBA 3 TORRE ETANOL','CCMS','ESTEIRA TA04','CCM 4'] }; }
   var api = {
-    identificar: function () { return { cracha:'1001', nome:'ELETRICISTA EXEMPLO', oficina:'INSTRUMENTAÇÃO', br:br(dk), turno:'A', dk:dk, escalaHoje:'A', foraEscala:false, logoutMin:5,
+    identificar: function (c) { if (c === '9999') return { cracha:'9999', nome:'LÍDER EXEMPLO', oficina:'INS', lider:true, br:br(dk), turno:'A', dk:dk, opcoes:{} };
+      return { cracha:'1001', nome:'ELETRICISTA EXEMPLO', oficina:'INSTRUMENTAÇÃO', br:br(dk), turno:'A', dk:dk, escalaHoje:'A', foraEscala:false, logoutMin:5,
       opcoes:{ A:{dk:dk,br:br(dk)}, B:{dk:dk,br:br(dk)}, C:{dk:dk,br:br(dk)}, D:{dk:dk,br:br(dk)} } }; },
     carregarTurno: function () { return pacote(); },
     salvarOcorrencia: function (c, d) {
@@ -1077,6 +1236,12 @@ var DEMO = (function () {
     {chave:'TURNO_B_FIM',valor:'23:40'},{chave:'TURNO_C_INICIO',valor:'23:40'},{chave:'TURNO_C_FIM',valor:'07:00'},{chave:'ENVIO_A',valor:'15:50'},{chave:'TURNO_D_INICIO',valor:'07:00'},{chave:'TURNO_D_FIM',valor:'16:48'},{chave:'ENVIO_D',valor:'17:00'},{chave:'ENVIO_B',valor:'23:50'},{chave:'ENVIO_C',valor:'07:10'},
     {chave:'EMAILS_LIDERES',valor:'lider@empresa.com'},{chave:'ENVIO_ATIVO',valor:'SIM'},{chave:'LOGOUT_MIN',valor:'5'}] }; }
   Object.assign(api, {
+    liderPainel: function () {
+      var o = oc.map(function (x) { return Object.assign({ oficina:'INS', turno:'A' }, x); });
+      o.push({ id:'x9', dk:dk, turno:'B', cracha:'1003', nome:'ELETRICISTA TURNO B', equipamento:'CCM 4', ocorrencia:'VERIFICADO AQUECIMENTO', inicio:'16:00', fim:'18:30', status:'ANDAMENTO', descricao:'MONITORAR', lt:'', ordem:'40529980', oficina:'INS' });
+      return { nome:'LÍDER EXEMPLO', oficina:'INS', dk:dk, br:br(dk), hoje:dk, turnoAtual:'A', ocorrencias:o, pendencias:pend.map(function (p) { return Object.assign({ oficina:'INS' }, p); }),
+        escalados:[{cracha:'1001',nome:'ELETRICISTA EXEMPLO',turno:'A'},{cracha:'1002',nome:'OUTRO ELETRICISTA',turno:'A'},{cracha:'1006',nome:'TERCEIRO TURNO A',turno:'A'},{cracha:'1003',nome:'ELETRICISTA TURNO B',turno:'B'},{cracha:'1004',nome:'ELETRICISTA TURNO C',turno:'C'}],
+        enviado:{A:true,B:false,C:false,D:false}, janelas:{A:'07:00 às 15:35',B:'15:20 às 23:40',C:'23:40 às 07:00',D:'07:00 às 16:48'}, logoutMin:5 }; },
     adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
     adminSair: function () { return true; },
     adminDados: dados,

@@ -20,7 +20,7 @@ function letra_(t) { return t === 'D' ? '6x1' : t; }
 const TOLERANCIA_MIN = 90;         // antecedência/atraso aceito para sugerir o turno da escala
 
 const CAB = {
-  Cadastro:    ['Crachá', 'Nome', 'Ciclo', '1º dia de serviço', 'Ativo', 'Oficina'],
+  Cadastro:    ['Crachá', 'Nome', 'Ciclo', '1º dia de serviço', 'Ativo', 'Oficina', 'Perfil'],
   Excecoes:    ['Data início', 'Data fim', 'Crachá', 'Turno (A/B/C/D=6x1/F=folga)', 'Motivo'],
   Ocorrencias: ['ID', 'Data turno', 'Turno', 'Crachá', 'Nome', 'Ocorrência', 'Início', 'Fim', 'Status',
                 'Descrição da pendência', 'Nº LT', 'Ordem/Nota', 'Registrado em', 'Atualizado em',
@@ -242,10 +242,12 @@ function pessoas_() {
       nome: String(r[1]).trim().toUpperCase(),
       ciclo: String(r[2]).toUpperCase().split(/[,;\s]+/).filter(String),
       inicio: paraDk(r[3]),
-      ativo: String(r[4]).trim().toUpperCase() !== 'NAO', oficina: String(r[5] || '').trim().toUpperCase()
+      ativo: String(r[4]).trim().toUpperCase() !== 'NAO', oficina: String(r[5] || '').trim().toUpperCase(),
+      lider: ehLider_(r[6])
     };
   });
 }
+function ehLider_(v) { return /^L[IÍ]DER$/.test(String(v || '').trim().toUpperCase()); }
 function excecoes_() {
   return ler_(ABA.EXC).rows.filter(function (r) { return r[0] && r[2]; }).map(function (r) {
     const ini = paraDk(r[0]);
@@ -320,7 +322,7 @@ function identificar(crachaDigitado) {
     foraEscala = true;
   }
   return {
-    cracha: p.cracha, nome: p.nome, oficina: p.oficina,
+    cracha: p.cracha, nome: p.nome, oficina: p.oficina, lider: p.lider,
     turno: sug.turno, dk: sug.dk, br: dkToBr(sug.dk),
     escalaHoje: turnoEscala(p, now.dk, excs),
     foraEscala: foraEscala, opcoes: opcoes, logoutMin: cfg.logout
@@ -852,7 +854,7 @@ function adminDados(token) {
   const cad = ler_(ABA.CAD).rows;
   const pessoas = cad.filter(function (r) { return String(r[0]).trim() !== ''; }).map(function (r) {
     return { cracha: normCracha(r[0]), nome: String(r[1]).toUpperCase(), ciclo: String(r[2]).toUpperCase().replace(/\s/g, ''),
-      inicio: paraDk(r[3]), ativo: String(r[4]).trim().toUpperCase() !== 'NAO', oficina: String(r[5] || '').trim().toUpperCase() };
+      inicio: paraDk(r[3]), ativo: String(r[4]).trim().toUpperCase() !== 'NAO', oficina: String(r[5] || '').trim().toUpperCase(), lider: ehLider_(r[6]) };
   }).sort(function (a, b) { return a.nome < b.nome ? -1 : 1; });
   const exc = ler_(ABA.EXC).rows.map(function (r, i) {
     const ini = paraDk(r[0]);
@@ -876,12 +878,14 @@ function adminSalvarPessoa(token, p, crachaOriginal) {
   if (!/^\d+$/.test(cracha)) throw new Error('Crachá deve ter só números.');
   const nome = String(p.nome || '').trim().toUpperCase();
   if (nome.length < 3) throw new Error('Informe o nome.');
+  const lider = p.lider === true;
   const ciclo = String(p.ciclo || '').toUpperCase().split(/[,;\s]+/).filter(String);
-  if (!ciclo.length || ciclo.some(function (c) { return ['A', 'B', 'C', 'D', 'F'].indexOf(c) < 0; }))
+  if ((!ciclo.length && !lider) || ciclo.some(function (c) { return ['A', 'B', 'C', 'D', 'F'].indexOf(c) < 0; }))
     throw new Error('Ciclo inválido. Use só A, B, C, D (6x1) ou F separados por vírgula.');
   const inicio = paraDk(p.inicio);
-  if (!inicio) throw new Error('Informe o 1º dia de serviço (primeiro dia de trabalho depois de uma folga).');
-  const linhaNova = [cracha, nome, ciclo.join(','), dkToBr(inicio), p.ativo === false ? 'NAO' : 'SIM', String(p.oficina || '').trim().toUpperCase()];
+  if (!inicio && ciclo.length) throw new Error('Informe o 1º dia de serviço (primeiro dia de trabalho depois de uma folga).');
+  const linhaNova = [cracha, nome, ciclo.join(','), inicio ? dkToBr(inicio) : '', p.ativo === false ? 'NAO' : 'SIM', String(p.oficina || '').trim().toUpperCase(),
+    lider ? 'LÍDER' : 'COLABORADOR'];
 
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
@@ -892,7 +896,7 @@ function adminSalvarPessoa(token, p, crachaOriginal) {
     const idxOrig = orig ? crachas.indexOf(orig) : -1;
     const idxDup = crachas.indexOf(cracha);
     if (idxDup >= 0 && idxDup !== idxOrig) throw new Error('Já existe um funcionário com o crachá ' + cracha + '.');
-    if (idxOrig >= 0) sh.getRange(idxOrig + 2, 1, 1, 6).setValues([linhaNova]);
+    if (idxOrig >= 0) sh.getRange(idxOrig + 2, 1, 1, 7).setValues([linhaNova]);
     else sh.appendRow(linhaNova);
   } finally { lock.releaseLock(); }
   return adminDados(token);
@@ -1073,4 +1077,47 @@ function adminTrocarSenha(token, atual, nova) {
   if (String(nova || '').length < 6) throw new Error('A nova senha precisa ter pelo menos 6 caracteres.');
   props.setProperty('ADMIN_HASH', hash_(String(nova)));
   return true;
+}
+
+
+/*****************************************************************
+ * TELA DO LÍDER (perfil LÍDER no cadastro)
+ *****************************************************************/
+
+// Dados de um dia (todos os turnos) da oficina do líder. Líder sem oficina vê todas.
+function liderPainel(cracha, dkPedido) {
+  cracha = normCracha(cracha);
+  const p = pessoas_().filter(function (x) { return x.cracha === cracha; })[0];
+  if (!p || !p.ativo || !p.lider) throw new Error('Acesso restrito aos líderes.');
+  const now = agora(), cfg = config_(), mapa = mapaOficinas_(), excs = excecoes_(), pess = pessoas_();
+  const opcoes = opcoesTurno_(now, cfg);
+  const dk = paraDk(dkPedido) || (opcoes[TURNOS.filter(function (t) { return opcoes[t].atual; })[0] || 'A'] || {}).dk || now.dk;
+  const of = p.oficina ? normOf_(p.oficina) : null;
+  const daOf = function (o) { return !of || o === of; };
+
+  const ocos = ler_(ABA.OCO).rows.map(ocoParaObj_)
+    .map(function (o) { o.oficina = ofDe_(o.oficina, o.cracha, mapa); return o; })
+    .filter(function (o) { return o.dk === dk && daOf(o.oficina); });
+  const escalados = [], enviado = {}, janelas = {};
+  TURNOS.forEach(function (t) {
+    escalados_(dk, t, pess, excs).forEach(function (x) {
+      if (daOf(normOf_(x.oficina))) escalados.push({ cracha: x.cracha, nome: x.nome, turno: t, oficina: normOf_(x.oficina) });
+    });
+    enviado[t] = of ? jaEnviado_(dk, t, of) : jaEnviado_(dk, t);
+    const j = cfg.turnos[t];
+    janelas[t] = paraHm(pad2(Math.floor(j.ini / 60)) + ':' + pad2(j.ini % 60)) + ' às ' + paraHm(pad2(Math.floor(j.fim / 60)) + ':' + pad2(j.fim % 60));
+  });
+  const P = function (r, t) { return r[col_(ABA.PEN, t)]; };
+  const pend = ler_(ABA.PEN).rows.filter(function (r) {
+    return P(r, 'Situação') === 'ABERTA' && daOf(ofDe_(P(r, 'Oficina'), P(r, 'Crachá'), mapa));
+  }).map(function (r) {
+    const ab = paraDk(P(r, 'Aberta em'));
+    return { id: P(r, 'ID'), abertaEm: dkToBr(ab), dias: dkDiff(ab, now.dk), turno: P(r, 'Turno'), nome: P(r, 'Nome'),
+      ocorrencia: P(r, 'Ocorrência'), descricao: P(r, 'Descrição da pendência'), lt: P(r, 'Nº LT'), ordem: P(r, 'Ordem/Nota'),
+      statusOriginal: P(r, 'Status original'), equipamento: P(r, 'Equipamento/TAG') || '', oficina: ofDe_(P(r, 'Oficina'), P(r, 'Crachá'), mapa) };
+  }).sort(function (a, b) { return b.dias - a.dias; });
+
+  return { nome: p.nome, oficina: of || 'TODAS', dk: dk, br: dkToBr(dk), hoje: now.dk,
+    turnoAtual: TURNOS.filter(function (t) { return opcoes[t].atual; })[0] || 'A',
+    ocorrencias: ocos, escalados: escalados, pendencias: pend, enviado: enviado, janelas: janelas, logoutMin: cfg.logout };
 }
