@@ -144,7 +144,7 @@
 <section id="telaLogin">
   <div class="marca">LINS AGROINDUSTRIAL</div>
   <h1>Livro de Ocorrências de Turno</h1>
-  <div class="sub">Manutenção Elétrica · digite o número do seu crachá</div>
+  <div class="sub">Manutenção · digite o número do seu crachá</div>
   <div class="visor" id="visor"><span class="ph">Nº do crachá</span></div>
   <div class="teclado" id="teclado"></div>
   <div id="msgLogin"></div>
@@ -154,7 +154,7 @@
 <!-- ============ ADMIN ============ -->
 <section id="telaAdmin" class="oculto">
   <header class="adm">
-    <div class="quem"><b>Administrador</b><span>Livro de Ocorrências · Manutenção Elétrica</span></div>
+    <div class="quem"><b>Administrador</b><span>Livro de Ocorrências · Manutenção</span></div>
     <button class="sair" onclick="sair()">SAIR</button>
   </header>
   <nav id="navAdm">
@@ -942,6 +942,8 @@ function renderRel() {
   c.innerHTML = '<div class="filtros"><div><label>DATA DO TURNO</label><input type="date" id="rlData" value="' + ADM.relDk + '"></div>' +
     '<div><label>TURNO</label><select id="rlTurno" style="width:110px">' + ['A','B','C','D'].map(function (t) {
       return '<option' + (t === ADM.relTurno ? ' selected' : '') + ' value="' + t + '">' + (t === 'D' ? '6x1' : t) + '</option>'; }).join('') + '</select></div>' +
+    '<div><label>OFICINA</label><select id="rlOf" style="width:240px"><option value="">TODAS (um e-mail cada)</option>' +
+      (ADM.dados.oficinas || []).map(function (o) { return '<option' + (o.nome === ADM.relOf ? ' selected' : '') + '>' + esc(o.nome) + '</option>'; }).join('') + '</select></div>' +
     '<button class="bt" onclick="previaRel()">PRÉ-VISUALIZAR E-MAIL</button><button class="bt verde" id="btEnviar" onclick="enviarRel()">ENVIAR AGORA</button></div>' +
     '<div id="rlInfo"></div><iframe class="previa oculto" id="rlPrevia"></iframe>' +
     '<div class="secao">Últimos envios</div><div id="rlHist"></div>';
@@ -949,18 +951,19 @@ function renderRel() {
     var h = res.envios;
     if (res.falha) document.getElementById('rlInfo').innerHTML = '<div class="aviso" style="margin:0 0 12px;background:#FDECEA;border-left:6px solid var(--pen)">' +
       'O envio automático do ' + rt(res.falha.turno) + ' de ' + esc(res.falha.data) + ' falhou (' + esc(res.falha.em) + '): ' + esc(res.falha.erro) + '</div>';
-    document.getElementById('rlHist').innerHTML = h.length ? '<table class="tabela"><tr><th>DATA</th><th>TURNO</th><th>ENVIADO EM</th><th>PARA</th><th>OCORR.</th><th>MODO</th></tr>' +
-      h.map(function (x) { return '<tr><td>' + esc(x.data) + '</td><td>' + esc(x.turno) + '</td><td>' + esc(x.em) + '</td><td style="font-size:12px">' + esc(x.para) +
+    document.getElementById('rlHist').innerHTML = h.length ? '<table class="tabela"><tr><th>DATA</th><th>TURNO</th><th>OFICINA</th><th>ENVIADO EM</th><th>PARA</th><th>OCORR.</th><th>MODO</th></tr>' +
+      h.map(function (x) { return '<tr><td>' + esc(x.data) + '</td><td>' + esc(x.turno === 'D' ? '6x1' : x.turno) + '</td><td>' + esc(x.oficina) + '</td><td>' + esc(x.em) + '</td><td style="font-size:12px">' + esc(x.para) +
         '</td><td>' + esc(x.qtd) + '</td><td>' + esc(x.modo) + '</td></tr>'; }).join('') + '</table>' : '<div class="vazio" style="padding:14px">Nenhum envio ainda.</div>';
   });
 }
-function lerRel() { ADM.relDk = val('rlData'); ADM.relTurno = document.getElementById('rlTurno').value; }
+function lerRel() { ADM.relDk = val('rlData'); ADM.relTurno = document.getElementById('rlTurno').value; ADM.relOf = document.getElementById('rlOf').value; }
 function previaRel() {
   lerRel();
-  api('adminPreviewRelatorio', [ADM.token, ADM.relDk, ADM.relTurno], function (r) {
+  api('adminPreviewRelatorio', [ADM.token, ADM.relDk, ADM.relTurno, ADM.relOf], function (r) {
     var f = document.getElementById('rlPrevia'); f.classList.remove('oculto'); f.srcdoc = r.html;
-    document.getElementById('rlInfo').innerHTML = '<div class="resumo">' + (r.enviado ? 'Este turno <b>já foi enviado</b>. ' : '') +
-      'Destinatários: <b>' + (esc(r.emails) || 'nenhum cadastrado em Configurações') + '</b></div>';
+    document.getElementById('rlInfo').innerHTML = '<div class="resumo">' + (r.itens.length ? r.itens.map(function (i) {
+      return '<b>' + esc(i.oficina) + '</b>' + (i.enviado ? ' (já enviado)' : '') + ' → ' + (esc(i.emails) || '<span style="color:var(--pen)">nenhum e-mail cadastrado</span>');
+    }).join('<br>') : 'Nada para enviar neste turno.') + '</div>';
   });
 }
 function enviarRel() {
@@ -969,7 +972,7 @@ function enviarRel() {
   if (b.textContent !== 'CONFIRMAR ENVIO') { b.textContent = 'CONFIRMAR ENVIO'; b.style.background = 'var(--pen)'; return; }
   b.textContent = 'ENVIAR AGORA'; b.style.background = '';
   erroAtual = null;
-  api('adminEnviarRelatorio', [ADM.token, ADM.relDk, ADM.relTurno], function (r) { toast('Relatório enviado'); renderRel(); });
+  api('adminEnviarRelatorio', [ADM.token, ADM.relDk, ADM.relTurno, ADM.relOf], function (r) { toast('Enviado: ' + r.oficinas.join(', ')); renderRel(); });
 }
 
 /* ----- Configurações ----- */
@@ -989,9 +992,13 @@ function renderCfg() {
       ? '<select id="cf_' + f[0] + '"><option value="SIM"' + (v[f[0]] !== 'NAO' ? ' selected' : '') + '>Ligado</option><option value="NAO"' + (v[f[0]] === 'NAO' ? ' selected' : '') + '>Desligado</option></select>'
       : '<input type="' + f[2] + '" id="cf_' + f[0] + '" value="' + esc(v[f[0]] || '') + '">') + '</div>';
   });
-  h += '</div><label>E-MAILS DOS LÍDERES (separe por vírgula)</label><textarea id="cf_EMAILS_LIDERES" style="text-transform:none;min-height:70px">' + esc(v.EMAILS_LIDERES || '') + '</textarea>' +
+  h += '</div><div class="secao">E-mails dos líderes</div>' +
+    '<div class="ctx" style="color:var(--suave);font-size:13px">Cada oficina recebe o seu relatório. Se a oficina ficar em branco, vai para os e-mails gerais.</div>';
+  (ADM.dados.oficinas || []).forEach(function (o) {
+    h += '<label>OFICINA ' + esc(o.nome) + '</label><textarea id="cf_' + o.chave + '" style="text-transform:none;min-height:56px" placeholder="vazio = usa os e-mails gerais">' + esc(v[o.chave] || '') + '</textarea>';
+  });
+  h += '<label>GERAIS (separe por vírgula)</label><textarea id="cf_EMAILS_LIDERES" style="text-transform:none;min-height:56px">' + esc(v.EMAILS_LIDERES || '') + '</textarea>' +
     '<label>E-MAIL DO ADMINISTRADOR (recebe aviso se o envio falhar)</label><input id="cf_EMAIL_ADMIN" style="text-transform:none" value="' + esc(v.EMAIL_ADMIN || '') + '">' +
-    '<label>NOME DA EQUIPE NO RELATÓRIO</label><input id="cf_EQUIPE" value="' + esc(v.EQUIPE || '') + '">' +
     '<div class="erro" id="cfErro"></div><button class="bt" onclick="salvarCfg()">SALVAR CONFIGURAÇÕES</button>';
   h += '<div class="secao">Trocar senha do administrador</div><div class="cfg">' +
     '<div><label>SENHA ATUAL</label><input type="password" id="sAtual"></div><div><label>NOVA SENHA</label><input type="password" id="sNova"></div>' +
@@ -1002,7 +1009,8 @@ function renderCfg() {
 function salvarCfg() {
   var o = {};
   CFG_CAMPOS.forEach(function (f) { o[f[0]] = val('cf_' + f[0]); });
-  o.EMAILS_LIDERES = val('cf_EMAILS_LIDERES'); o.EMAIL_ADMIN = val('cf_EMAIL_ADMIN'); o.EQUIPE = val('cf_EQUIPE').toUpperCase();
+  o.EMAILS_LIDERES = val('cf_EMAILS_LIDERES'); o.EMAIL_ADMIN = val('cf_EMAIL_ADMIN');
+  (ADM.dados.oficinas || []).forEach(function (x) { o[x.chave] = val('cf_' + x.chave); });
   erroAtual = function (m) { document.getElementById('cfErro').textContent = m; };
   api('adminSalvarConfig', [ADM.token, o], function (d) { ADM.dados = d; renderCfg(); toast('Configurações salvas'); });
 }
@@ -1048,9 +1056,9 @@ var DEMO = (function () {
     { cracha:'1005', nome:'FOLGUISTA EXEMPLO', ciclo:'B,B,C,C,F,F', inicio:dk, ativo:true },
     { cracha:'1006', nome:'TERCEIRO TURNO A', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:false }];
   var excs = [{ linha:2, ini:dk, fim:dk, cracha:'1003', nome:'ELETRICISTA TURNO B', turno:'F', motivo:'ATESTADO' }];
-  function dados() { return { pessoas:pess, excecoes:excs, config:[{chave:'TURNO_A_INICIO',valor:'07:00'},{chave:'TURNO_A_FIM',valor:'15:35'},{chave:'TURNO_B_INICIO',valor:'15:20'},
+  function dados() { return { pessoas:pess, excecoes:excs, oficinas:[{nome:'ELE',chave:'EMAILS_ELE'},{nome:'INS',chave:'EMAILS_INS'}], config:[{chave:'TURNO_A_INICIO',valor:'07:00'},{chave:'TURNO_A_FIM',valor:'15:35'},{chave:'TURNO_B_INICIO',valor:'15:20'},
     {chave:'TURNO_B_FIM',valor:'23:40'},{chave:'TURNO_C_INICIO',valor:'23:40'},{chave:'TURNO_C_FIM',valor:'07:00'},{chave:'ENVIO_A',valor:'15:50'},{chave:'TURNO_D_INICIO',valor:'07:00'},{chave:'TURNO_D_FIM',valor:'16:48'},{chave:'ENVIO_D',valor:'17:00'},{chave:'ENVIO_B',valor:'23:50'},{chave:'ENVIO_C',valor:'07:10'},
-    {chave:'EMAILS_LIDERES',valor:'lider@empresa.com'},{chave:'ENVIO_ATIVO',valor:'SIM'},{chave:'EQUIPE',valor:'EQUIPE DE MANUTENÇÃO ELÉTRICA'},{chave:'LOGOUT_MIN',valor:'5'}] }; }
+    {chave:'EMAILS_LIDERES',valor:'lider@empresa.com'},{chave:'ENVIO_ATIVO',valor:'SIM'},{chave:'LOGOUT_MIN',valor:'5'}] }; }
   Object.assign(api, {
     adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
     adminSair: function () { return true; },
@@ -1067,8 +1075,8 @@ var DEMO = (function () {
       return { datas:datas, linhas:linhas, totais: datas.map(function (d, i) { var x = {A:0,B:0,C:0,D:0}; linhas.forEach(function (l) { if (x[l.dias[i].t] !== undefined) x[l.dias[i].t]++; }); return x; }) }; },
     adminSalvarExcecao: function (t, e) { e.linha = excs.length + 2; e.nome = pess.filter(function (p) { return p.cracha === e.cracha; })[0].nome; excs.push(e); return dados(); },
     adminExcluirExcecao: function (t, l) { excs = excs.filter(function (e) { return e.linha !== l; }); return dados(); },
-    adminPreviewRelatorio: function () { return { html:'<p style="font-family:sans-serif;padding:20px">Pré-visualização do e-mail (no Google aparece o relatório real).</p>', enviado:false, emails:'lider@empresa.com' }; },
-    adminEnviarRelatorio: function () { return { ok:true }; },
+    adminPreviewRelatorio: function () { return { html:'<p style="font-family:sans-serif;padding:20px">Pré-visualização do e-mail (no Google aparece o relatório real).</p>', itens:[{oficina:'ELE',enviado:false,emails:'lider@empresa.com'},{oficina:'INS',enviado:false,emails:'lider.ins@empresa.com'}] }; },
+    adminEnviarRelatorio: function () { return { ok:true, oficinas:['ELE','INS'] }; },
     adminHistoricoEnvios: function () { return { envios: [], falha: null }; },
     adminSalvarConfig: function () { return dados(); },
     adminTrocarSenha: function () { return true; }

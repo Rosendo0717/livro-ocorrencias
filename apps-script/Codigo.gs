@@ -1,5 +1,5 @@
 /*****************************************************************
- * LIVRO DE OCORRÊNCIAS DE TURNO – EQUIPE DE MANUTENÇÃO ELÉTRICA
+ * LIVRO DE OCORRÊNCIAS DE TURNO – MANUTENÇÃO (relatório separado por oficina)
  * Google Planilhas + Apps Script (site para tablet + e-mail por turno)
  *
  * Abas criadas pelo setup():
@@ -24,12 +24,12 @@ const CAB = {
   Excecoes:    ['Data início', 'Data fim', 'Crachá', 'Turno (A/B/C/D=6x1/F=folga)', 'Motivo'],
   Ocorrencias: ['ID', 'Data turno', 'Turno', 'Crachá', 'Nome', 'Ocorrência', 'Início', 'Fim', 'Status',
                 'Descrição da pendência', 'Nº LT', 'Ordem/Nota', 'Registrado em', 'Atualizado em',
-                'Fora da escala', 'Após envio', 'Ref. pendência', 'Justificativa sem ordem', 'Equipamento/TAG'],
+                'Fora da escala', 'Após envio', 'Ref. pendência', 'Justificativa sem ordem', 'Equipamento/TAG', 'Oficina'],
   Pendencias:  ['ID', 'Aberta em', 'Turno', 'Crachá', 'Nome', 'Ocorrência', 'Descrição da pendência', 'Nº LT',
                 'Ordem/Nota', 'Situação', 'Status original', 'ID ocorrência origem', 'Finalizada em',
-                'Turno finalização', 'Crachá finalizador', 'Nome finalizador', 'O que foi feito', 'Registrado em', 'Equipamento/TAG'],
+                'Turno finalização', 'Crachá finalizador', 'Nome finalizador', 'O que foi feito', 'Registrado em', 'Equipamento/TAG', 'Oficina'],
   Config:      ['Parâmetro', 'Valor', 'Observação'],
-  Envios:      ['Data turno', 'Turno', 'Enviado em', 'Destinatários', 'Ocorrências', 'Modo']
+  Envios:      ['Data turno', 'Turno', 'Enviado em', 'Destinatários', 'Ocorrências', 'Modo', 'Oficina']
 };
 
 const CONFIG_PADRAO = [
@@ -49,7 +49,6 @@ const CONFIG_PADRAO = [
   ['EMAILS_LIDERES', '', 'Separe por vírgula: lider1@empresa.com, lider2@empresa.com'],
   ['EMAIL_ADMIN', '', 'Recebe aviso se o envio automático falhar (vazio = dono da planilha)'],
   ['ENVIO_ATIVO', 'SIM', 'SIM ou NAO'],
-  ['EQUIPE', 'EQUIPE DE MANUTENÇÃO ELÉTRICA', 'Aparece no título do relatório'],
   ['LOGOUT_MIN', '5', 'Minutos sem uso para o tablet voltar à tela do crachá']
 ];
 
@@ -167,6 +166,38 @@ function agora() {
 function normCracha(v) {
   const s = String(v || '').trim();
   return /^\d+$/.test(s) ? String(Number(s)) : s.toUpperCase();
+}
+
+/* =================== OFICINAS =================== */
+
+const SEM_OFICINA = 'SEM OFICINA';
+function normOf_(s) { return String(s || '').trim().toUpperCase() || SEM_OFICINA; }
+// Chave usada na Config para os e-mails da oficina: INSTRUMENTAÇÃO -> EMAILS_INSTRUMENTACAO
+function chaveOf_(of) {
+  return 'EMAILS_' + normOf_(of).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+function mapaOficinas_() {
+  const m = {};
+  pessoas_().forEach(function (p) { m[p.cracha] = normOf_(p.oficina); });
+  return m;
+}
+// Oficina de uma ocorrência/pendência: a gravada na linha ou, em linhas antigas, a do cadastro atual
+function ofDe_(gravada, cracha, mapa) { return gravada ? normOf_(gravada) : (mapa[normCracha(cracha)] || SEM_OFICINA); }
+
+function emailsOficina_(cfg, of) {
+  const proprios = String(cfg[chaveOf_(of)] || '').split(/[,;\s]+/).filter(function (e) { return e.indexOf('@') > 0; });
+  if (proprios.length) return proprios;
+  return String(cfg.EMAILS_LIDERES || '').split(/[,;\s]+/).filter(function (e) { return e.indexOf('@') > 0; });
+}
+
+// Oficinas que têm alguém escalado ou algum lançamento no turno
+function oficinasDoTurno_(dk, turno) {
+  const mapa = mapaOficinas_(), set = {};
+  escalados_(dk, turno, pessoas_(), excecoes_()).forEach(function (p) { set[normOf_(p.oficina)] = 1; });
+  ler_(ABA.OCO).rows.map(ocoParaObj_).forEach(function (o) {
+    if (o.dk === dk && o.turno === turno) set[ofDe_(o.oficina, o.cracha, mapa)] = 1;
+  });
+  return Object.keys(set).sort();
 }
 
 /* =================== LEITURA DAS ABAS =================== */
@@ -296,24 +327,33 @@ function identificar(crachaDigitado) {
   };
 }
 
+// cracha vazio (administrador) = todas as oficinas; senão, só a oficina de quem entrou
 function carregarTurno(cracha, turno, dk) {
   const oco = ler_(ABA.OCO).rows;
   const C = function (t) { return col_(ABA.OCO, t); };
-  const cfg = config_();
+  const cfg = config_(), mapa = mapaOficinas_();
+  const minhaOf = cracha ? (mapa[normCracha(cracha)] || SEM_OFICINA) : null;
   const lista = oco.filter(function (r) { return paraDk(r[C('Data turno')]) === dk && r[C('Turno')] === turno; })
-    .map(ocoParaObj_).sort(ordenarOco_(cfg.turnos[turno].ini));
+    .map(ocoParaObj_)
+    .map(function (o) { o.oficina = ofDe_(o.oficina, o.cracha, mapa); return o; })
+    .filter(function (o) { return !minhaOf || o.oficina === minhaOf; })
+    .sort(ordenarOco_(cfg.turnos[turno].ini));
   const now = agora();
-  const pend = ler_(ABA.PEN).rows.filter(function (r) { return r[col_(ABA.PEN, 'Situação')] === 'ABERTA'; })
+  const pend = ler_(ABA.PEN).rows.filter(function (r) {
+      return r[col_(ABA.PEN, 'Situação')] === 'ABERTA' &&
+        (!minhaOf || ofDe_(r[col_(ABA.PEN, 'Oficina')], r[col_(ABA.PEN, 'Crachá')], mapa) === minhaOf);
+    })
     .map(function (r) {
       const P = function (t) { return r[col_(ABA.PEN, t)]; };
       const ab = paraDk(P('Aberta em'));
       return {
         id: P('ID'), abertaEm: dkToBr(ab), dias: dkDiff(ab, now.dk), turno: P('Turno'), nome: P('Nome'),
         ocorrencia: P('Ocorrência'), descricao: P('Descrição da pendência'), lt: P('Nº LT'),
-        ordem: P('Ordem/Nota'), statusOriginal: P('Status original'), equipamento: P('Equipamento/TAG') || ''
+        ordem: P('Ordem/Nota'), statusOriginal: P('Status original'), equipamento: P('Equipamento/TAG') || '',
+        oficina: ofDe_(P('Oficina'), P('Crachá'), mapa)
       };
     }).sort(function (a, b) { return b.dias - a.dias; });
-  return { ocorrencias: lista, pendencias: pend, enviado: jaEnviado_(dk, turno), cracha: normCracha(cracha), equipamentos: listaEquip_(oco) };
+  return { ocorrencias: lista, pendencias: pend, enviado: minhaOf ? jaEnviado_(dk, turno, minhaOf) : jaEnviado_(dk, turno), cracha: normCracha(cracha), equipamentos: listaEquip_(oco) };
 }
 
 // Equipamentos já usados (mais frequentes primeiro), para sugerir no tablet
@@ -327,7 +367,8 @@ function salvarOcorrencia(cracha, d) { return salvarOcorrencia_(cracha, d, false
 
 function travado_(row, porAdmin) {
   if (porAdmin === true) return;
-  if (jaEnviado_(paraDk(row[col_(ABA.OCO, 'Data turno')]), row[col_(ABA.OCO, 'Turno')]) && row[col_(ABA.OCO, 'Após envio')] !== 'SIM')
+  const of = ofDe_(row[col_(ABA.OCO, 'Oficina')], row[col_(ABA.OCO, 'Crachá')], mapaOficinas_());
+  if (jaEnviado_(paraDk(row[col_(ABA.OCO, 'Data turno')]), row[col_(ABA.OCO, 'Turno')], of) && row[col_(ABA.OCO, 'Após envio')] !== 'SIM')
     throw new Error('O relatório deste turno já foi enviado aos líderes. Só o administrador pode alterar.');
 }
 
@@ -340,7 +381,7 @@ function salvarOcorrencia_(cracha, d, porAdmin) {
   try {
     const sh = aba_(ABA.OCO), now = agora();
     const fora = turnoEscala(p, d.dk, excecoes_()) !== d.turno ? 'SIM' : '';
-    const apos = jaEnviado_(d.dk, d.turno) ? 'SIM' : '';
+    const apos = jaEnviado_(d.dk, d.turno, normOf_(p.oficina)) ? 'SIM' : '';
     let obj;
     if (d.id) {
       const lin = acharLinha_(ABA.OCO, 'ID', d.id);
@@ -357,12 +398,13 @@ function salvarOcorrencia_(cracha, d, porAdmin) {
       row[col_(ABA.OCO, 'Ordem/Nota')] = d.ordem;
       row[col_(ABA.OCO, 'Justificativa sem ordem')] = d.justificativa;
       row[col_(ABA.OCO, 'Equipamento/TAG')] = d.equipamento;
+      if (!row[col_(ABA.OCO, 'Oficina')]) row[col_(ABA.OCO, 'Oficina')] = normOf_(p.oficina);
       row[col_(ABA.OCO, 'Atualizado em')] = now.carimbo + (porAdmin === true ? ' (ADMIN)' : '');
       sh.getRange(lin, 1, 1, row.length).setValues([row]);
       obj = ocoParaObj_(row);
     } else {
       const row = [Utilities.getUuid().slice(0, 8), dkToBr(d.dk), d.turno, p.cracha, p.nome, d.ocorrencia,
-        d.inicio, d.fim, d.status, d.descricao, d.lt, d.ordem, now.carimbo + (porAdmin === true ? ' (ADMIN)' : ''), '', fora, apos, d.ref || '', d.justificativa, d.equipamento];
+        d.inicio, d.fim, d.status, d.descricao, d.lt, d.ordem, now.carimbo + (porAdmin === true ? ' (ADMIN)' : ''), '', fora, apos, d.ref || '', d.justificativa, d.equipamento, normOf_(p.oficina)];
       sh.appendRow(row);
       obj = ocoParaObj_(row);
     }
@@ -457,7 +499,8 @@ function ocoParaObj_(r) {
     ocorrencia: C('Ocorrência'), inicio: paraHm(C('Início')), fim: paraHm(C('Fim')), status: C('Status'),
     descricao: C('Descrição da pendência'), lt: C('Nº LT'), ordem: String(C('Ordem/Nota') || ''),
     foraEscala: C('Fora da escala') === 'SIM', aposEnvio: C('Após envio') === 'SIM', ref: C('Ref. pendência'),
-    justificativa: C('Justificativa sem ordem') || '', equipamento: C('Equipamento/TAG') || ''
+    justificativa: C('Justificativa sem ordem') || '', equipamento: C('Equipamento/TAG') || '',
+    oficina: C('Oficina') || ''
   };
 }
 
@@ -491,15 +534,20 @@ function sincronizarPendencia_(o) {
     row[col_(ABA.PEN, 'Ordem/Nota')] = o.ordem;
     row[col_(ABA.PEN, 'Status original')] = o.status;
     row[col_(ABA.PEN, 'Equipamento/TAG')] = o.equipamento;
+    if (!row[col_(ABA.PEN, 'Oficina')]) row[col_(ABA.PEN, 'Oficina')] = o.oficina || '';
     sh.getRange(lin, 1, 1, row.length).setValues([row]);
   } else {
     sh.appendRow([Utilities.getUuid().slice(0, 8), dkToBr(o.dk), o.turno, o.cracha, o.nome, o.ocorrencia,
-      o.descricao, o.lt, o.ordem, 'ABERTA', o.status, o.id, '', '', '', '', '', '', o.equipamento]);
+      o.descricao, o.lt, o.ordem, 'ABERTA', o.status, o.id, '', '', '', '', '', '', o.equipamento, o.oficina || '']);
   }
 }
 
-function jaEnviado_(dk, turno) {
-  return ler_(ABA.ENV).rows.some(function (r) { return paraDk(r[0]) === dk && r[1] === turno; });
+// Sem oficina: algum envio do turno. Com oficina: envio daquela oficina (envios antigos, sem oficina, valem para todas)
+function jaEnviado_(dk, turno, oficina) {
+  return ler_(ABA.ENV).rows.some(function (r) {
+    if (paraDk(r[0]) !== dk || r[1] !== turno) return false;
+    return oficina === undefined || !r[6] || normOf_(r[6]) === normOf_(oficina);
+  });
 }
 
 /* =================== ENVIO DO RELATÓRIO =================== */
@@ -513,8 +561,10 @@ function verificarEnvios() {
     const dk = dkAdd(now.dk, k);
     TURNOS.forEach(function (t) {
       const prazo = momentoEnvio_(dk, t, cfg);
-      if (now.ms >= prazo && now.ms < prazo + 6 * 3600000 && !jaEnviado_(dk, t)) {
-        try { enviarRelatorio(dk, t, 'AUTOMÁTICO'); }
+      if (now.ms < prazo || now.ms >= prazo + 6 * 3600000) return;
+      const faltam = oficinasDoTurno_(dk, t).filter(function (of) { return !jaEnviado_(dk, t, of); });
+      if (faltam.length) {
+        try { enviarRelatorio(dk, t, 'AUTOMÁTICO', faltam); }
         catch (e) { avisarFalha_(dk, t, e); }   // tenta de novo na próxima rodada (10 min), por até 6 h
       }
     });
@@ -564,32 +614,46 @@ function enviarManual() {
   ui.alert('Relatório do ' + rot_(t) + ' de ' + dkToBr(dk) + ' enviado.');
 }
 
-function enviarRelatorio(dk, turno, modo) {
+// Envia um e-mail por oficina. oficinas: lista a enviar (vazio = todas as do turno)
+function enviarRelatorio(dk, turno, modo, oficinas) {
   const cfg = config_();
-  const emails = String(cfg.EMAILS_LIDERES || '').split(/[,;\s]+/).filter(function (e) { return e.indexOf('@') > 0; });
-  const dados = montarDados_(dk, turno, cfg);
-  const html = montarHtml_(dados, cfg);
-  const titulo = 'Livro de Ocorrências - ' + (turno === 'D' ? '6x1' : 'Turno ' + turno) + ' - ' + dkToBr(dk);
-
-  if (!emails.length) throw new Error('Nenhum e-mail de líder cadastrado em Configurações.');
-  if (MailApp.getRemainingDailyQuota() < emails.length) throw new Error('Cota diária de e-mails do Google esgotada.');
-  const pdf = HtmlService.createHtmlOutput(html).getBlob().getAs(MimeType.PDF)
-    .setName('Livro_Ocorrencias_' + dk + '_' + (turno === 'D' ? '6x1' : 'Turno_' + turno) + '.pdf');
-  MailApp.sendEmail({ to: emails.join(','), subject: titulo, htmlBody: html, attachments: [pdf], name: 'Livro de Ocorrências' });
-  aba_(ABA.ENV).appendRow([dkToBr(dk), turno, agora().carimbo, emails.join(', '), dados.ocorrencias.length, modo]);
+  const lista = (oficinas && oficinas.length) ? oficinas.map(normOf_) : oficinasDoTurno_(dk, turno);
+  if (!lista.length) throw new Error('Ninguém escalado e nenhum lançamento neste turno.');
+  const erros = [];
+  lista.forEach(function (of) {
+    try { enviarOficina_(dk, turno, of, modo, cfg); }
+    catch (e) { erros.push(of + ': ' + (e && e.message ? e.message : e)); }
+  });
+  if (erros.length) throw new Error(erros.join(' | '));
   const props = PropertiesService.getScriptProperties();
   try {
     const f = JSON.parse(props.getProperty('ULTIMA_FALHA') || 'null');
     if (f && f.dk === dk && f.turno === turno) props.deleteProperty('ULTIMA_FALHA');
   } catch (e) {}
+  return lista;
 }
 
-function montarDados_(dk, turno, cfg) {
-  const pess = pessoas_(), excs = excecoes_();
+function enviarOficina_(dk, turno, of, modo, cfg) {
+  const emails = emailsOficina_(cfg, of);
+  if (!emails.length) throw new Error('nenhum e-mail de líder cadastrado em Configurações.');
+  if (MailApp.getRemainingDailyQuota() < emails.length) throw new Error('cota diária de e-mails do Google esgotada.');
+  const dados = montarDados_(dk, turno, cfg, of);
+  const html = montarHtml_(dados, cfg);
+  const nomeTurno = turno === 'D' ? '6x1' : 'Turno ' + turno;
+  const titulo = 'Livro de Ocorrências - ' + of + ' - ' + nomeTurno + ' - ' + dkToBr(dk);
+  const pdf = HtmlService.createHtmlOutput(html).getBlob().getAs(MimeType.PDF)
+    .setName('Livro_Ocorrencias_' + of.replace(/[^A-Z0-9]+/gi, '_') + '_' + dk + '_' + nomeTurno.replace(' ', '_') + '.pdf');
+  MailApp.sendEmail({ to: emails.join(','), subject: titulo, htmlBody: html, attachments: [pdf], name: 'Livro de Ocorrências' });
+  aba_(ABA.ENV).appendRow([dkToBr(dk), turno, agora().carimbo, emails.join(', '), dados.ocorrencias.length, modo, of]);
+}
+
+function montarDados_(dk, turno, cfg, of) {
+  of = normOf_(of);
+  const pess = pessoas_(), excs = excecoes_(), mapa = mapaOficinas_();
   const ocos = ler_(ABA.OCO).rows.map(ocoParaObj_)
-    .filter(function (o) { return o.dk === dk && o.turno === turno; })
+    .filter(function (o) { return o.dk === dk && o.turno === turno && ofDe_(o.oficina, o.cracha, mapa) === of; })
     .sort(ordenarOco_(cfg.turnos[turno].ini));
-  const escal = escalados_(dk, turno, pess, excs);
+  const escal = escalados_(dk, turno, pess, excs).filter(function (p) { return normOf_(p.oficina) === of; });
   const lancaram = {};
   ocos.forEach(function (o) { lancaram[o.cracha] = true; });
   const naoLancaram = escal.filter(function (p) { return !lancaram[p.cracha]; }).map(function (p) { return p.nome; });
@@ -599,13 +663,14 @@ function montarDados_(dk, turno, cfg) {
   const pendRows = ler_(ABA.PEN).rows;
   const P = function (r, t) { return r[col_(ABA.PEN, t)]; };
   const hoje = agora().dk;
-  const abertas = pendRows.filter(function (r) { return P(r, 'Situação') === 'ABERTA'; }).map(function (r) {
+  const daOf = function (r) { return ofDe_(P(r, 'Oficina'), P(r, 'Crachá'), mapa) === of; };
+  const abertas = pendRows.filter(function (r) { return P(r, 'Situação') === 'ABERTA' && daOf(r); }).map(function (r) {
     return { abertaEm: P(r, 'Aberta em'), dias: dkDiff(paraDk(P(r, 'Aberta em')), hoje), turno: P(r, 'Turno'),
       nome: P(r, 'Nome'), ocorrencia: P(r, 'Ocorrência'), descricao: P(r, 'Descrição da pendência'),
       ordem: P(r, 'Ordem/Nota'), status: P(r, 'Status original'), equipamento: P(r, 'Equipamento/TAG') || '' };
   }).sort(function (a, b) { return b.dias - a.dias; });
   const finalizadas = pendRows.filter(function (r) {
-    return P(r, 'Situação') === 'FINALIZADA' && paraDk(P(r, 'Finalizada em')) === dk && P(r, 'Turno finalização') === turno;
+    return P(r, 'Situação') === 'FINALIZADA' && paraDk(P(r, 'Finalizada em')) === dk && P(r, 'Turno finalização') === turno && daOf(r);
   }).map(function (r) {
     return { abertaEm: P(r, 'Aberta em'), turno: P(r, 'Turno'), nome: P(r, 'Nome'), ocorrencia: P(r, 'Ocorrência'),
       por: P(r, 'Nome finalizador'), feito: P(r, 'O que foi feito') };
@@ -613,7 +678,7 @@ function montarDados_(dk, turno, cfg) {
 
   const cont = { CONCLUIDO: 0, ANDAMENTO: 0, PENDENTE: 0 };
   ocos.forEach(function (o) { cont[o.status] = (cont[o.status] || 0) + 1; });
-  return { dk: dk, turno: turno, ocorrencias: ocos, escalados: escal.length, lancaram: Object.keys(lancaram).length,
+  return { dk: dk, turno: turno, oficina: of, ocorrencias: ocos, escalados: escal.length, lancaram: Object.keys(lancaram).length,
     naoLancaram: naoLancaram, foraEscala: foraEscala, abertas: abertas, finalizadas: finalizadas, cont: cont };
 }
 
@@ -633,7 +698,7 @@ function montarHtml_(d, cfg) {
 
   let h = '<div style="font-family:Verdana,Arial,sans-serif;color:#1a1a1a;max-width:1100px">';
   h += '<table style="width:100%;border-collapse:collapse"><tr>' +
-    '<td style="background:' + AZUL + ';color:#fff;padding:12px 14px;font-size:18px;font-weight:bold">LIVRO DE OCORRÊNCIAS DE TURNO – ' + esc_(cfg.EQUIPE || '') + '</td>' +
+    '<td style="background:' + AZUL + ';color:#fff;padding:12px 14px;font-size:18px;font-weight:bold">LIVRO DE OCORRÊNCIAS DE TURNO – MANUTENÇÃO<br><span style="font-size:14px">OFICINA: ' + esc_(d.oficina) + '</span></td>' +
     '<td style="background:' + VERDE + ';color:#fff;padding:12px 14px;font-size:16px;font-weight:bold;text-align:center;white-space:nowrap">' +
     rot_(d.turno) + '<br><span style="font-size:13px;font-weight:normal">' + dkToBr(d.dk) + ' · ' + hm(j.ini) + ' às ' + hm(j.fim) + '</span></td></tr></table>';
 
@@ -663,7 +728,7 @@ function montarHtml_(d, cfg) {
 
   // Tabela principal
   h += '<table style="width:100%;border-collapse:collapse"><tr>' +
-    [['NOME DO ELETRICISTA', '10%'], ['EQUIPAMENTO', '11%'], ['OCORRÊNCIAS', '27%'], ['INÍCIO', '5%'], ['FIM', '5%'], ['STATUS', '9%'],
+    [['NOME', '10%'], ['EQUIPAMENTO', '11%'], ['OCORRÊNCIAS', '27%'], ['INÍCIO', '5%'], ['FIM', '5%'], ['STATUS', '9%'],
      ['DESCRIÇÃO DA PENDÊNCIA', '15%'], ['Nº LT', '6%'], ['ORDEM OU NOTA', '12%']]
       .map(function (c) { return '<th style="' + th + 'width:' + c[1] + '">' + c[0] + '</th>'; }).join('') + '</tr>';
   if (!d.ocorrencias.length) {
@@ -798,7 +863,10 @@ function adminDados(token) {
   const cfgRows = ler_(ABA.CFG).rows.filter(function (r) { return r[0]; }).map(function (r) {
     return { chave: String(r[0]), valor: /^(TURNO_|ENVIO_[ABCD]$)/.test(String(r[0])) ? paraHm(r[1]) : String(r[1]), obs: String(r[2] || '') };
   });
-  return { pessoas: pessoas, excecoes: exc.sort(function (a, b) { return a.ini < b.ini ? 1 : -1; }), config: cfgRows };
+  const ofs = {};
+  pessoas.forEach(function (p) { if (p.ativo) ofs[normOf_(p.oficina)] = 1; });
+  const oficinas = Object.keys(ofs).sort().map(function (o) { return { nome: o, chave: chaveOf_(o) }; });
+  return { pessoas: pessoas, excecoes: exc.sort(function (a, b) { return a.ini < b.ini ? 1 : -1; }), config: cfgRows, oficinas: oficinas };
 }
 
 function adminSalvarPessoa(token, p, crachaOriginal) {
@@ -928,28 +996,33 @@ function adminCancelarPendencia(token, pendId, motivo, turno, dk) {
 
 /* ---------- Relatórios ---------- */
 
-function adminPreviewRelatorio(token, dk, turno) {
+// of vazio = todas as oficinas do turno (uma depois da outra)
+function adminPreviewRelatorio(token, dk, turno, of) {
   exigirAdmin_(token);
   dk = paraDk(dk);
   if (!dk || TURNOS.indexOf(turno) < 0) throw new Error('Escolha data e turno.');
   const cfg = config_();
-  return { html: montarHtml_(montarDados_(dk, turno, cfg), cfg), enviado: jaEnviado_(dk, turno), emails: String(cfg.EMAILS_LIDERES || '') };
+  const lista = of ? [normOf_(of)] : oficinasDoTurno_(dk, turno);
+  if (!lista.length) return { html: '<p style="font-family:Verdana;padding:20px">Ninguém escalado e nenhum lançamento neste turno.</p>', itens: [] };
+  const htmls = [], itens = [];
+  lista.forEach(function (o) {
+    htmls.push(montarHtml_(montarDados_(dk, turno, cfg, o), cfg));
+    itens.push({ oficina: o, enviado: jaEnviado_(dk, turno, o), emails: emailsOficina_(cfg, o).join(', ') });
+  });
+  return { html: htmls.join('<hr style="border:0;border-top:4px dashed #BFC7D5;margin:28px 0">'), itens: itens };
 }
 
-function adminEnviarRelatorio(token, dk, turno) {
+function adminEnviarRelatorio(token, dk, turno, of) {
   exigirAdmin_(token);
   dk = paraDk(dk);
   if (!dk || TURNOS.indexOf(turno) < 0) throw new Error('Escolha data e turno.');
-  const emails = String(config_().EMAILS_LIDERES || '').trim();
-  if (!emails) throw new Error('Cadastre os e-mails dos líderes em Configurações antes de enviar.');
-  enviarRelatorio(dk, turno, 'ADMIN');
-  return { ok: true, emails: emails };
+  return { ok: true, oficinas: enviarRelatorio(dk, turno, 'ADMIN', of ? [of] : null) };
 }
 
 function adminHistoricoEnvios(token) {
   exigirAdmin_(token);
   const envios = ler_(ABA.ENV).rows.slice(-30).reverse().map(function (r) {
-    return { data: String(r[0]), turno: r[1], em: String(r[2]), para: String(r[3]), qtd: r[4], modo: r[5] };
+    return { data: String(r[0]), turno: r[1], em: String(r[2]), para: String(r[3]), qtd: r[4], modo: r[5], oficina: String(r[6] || 'TODAS') };
   });
   let falha = null;
   try { falha = JSON.parse(PropertiesService.getScriptProperties().getProperty('ULTIMA_FALHA') || 'null'); } catch (e) {}
@@ -963,13 +1036,13 @@ function adminSalvarConfig(token, valores) {
   exigirAdmin_(token);
   const permitidas = CONFIG_PADRAO.map(function (c) { return c[0]; });
   Object.keys(valores).forEach(function (k) {
-    if (permitidas.indexOf(k) < 0) throw new Error('Parâmetro desconhecido: ' + k);
+    if (permitidas.indexOf(k) < 0 && !/^EMAILS_[A-Z0-9_]+$/.test(k)) throw new Error('Parâmetro desconhecido: ' + k);
     let v = String(valores[k] || '').trim();
     if (/^(TURNO_|ENVIO_[ABCD]$)/.test(k)) { v = paraHm(v); if (!v) throw new Error('Horário inválido em ' + k + '.'); }
     if (k === 'ATRASO_ENVIO_MIN' || k === 'LOGOUT_MIN') { if (!/^\d+$/.test(v)) throw new Error(k + ' deve ser um número.'); }
     if (k === 'EMAIL_ADMIN' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) throw new Error('E-mail do administrador inválido.');
     if (k === 'ENVIO_ATIVO') v = v.toUpperCase() === 'NAO' ? 'NAO' : 'SIM';
-    if (k === 'EMAILS_LIDERES') {
+    if (k.indexOf('EMAILS_') === 0) {
       const lista = v.split(/[,;\s]+/).filter(String);
       lista.forEach(function (e) { if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('E-mail inválido: ' + e); });
       v = lista.join(', ');
@@ -984,7 +1057,7 @@ function adminSalvarConfig(token, valores) {
     if (i >= 0) sh.getRange(i + 2, 2).setValue(valores[k]);
     else {
       const padrao = CONFIG_PADRAO.filter(function (c) { return c[0] === k; })[0];
-      sh.appendRow([k, valores[k], padrao ? padrao[2] : '']);
+      sh.appendRow([k, valores[k], padrao ? padrao[2] : 'E-mails dos líderes da oficina (vazio = usa EMAILS_LIDERES)']);
     }
   });
   return adminDados(token);
