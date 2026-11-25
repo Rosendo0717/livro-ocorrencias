@@ -154,6 +154,7 @@
 
 <!-- ============ LOGIN ============ -->
 <section id="telaLogin">
+  <div id="faixaTeste" class="oculto" style="position:fixed;top:0;left:0;right:0;background:#FFDE1A;color:#000;text-align:center;font-weight:700;padding:6px;z-index:50">AMBIENTE DE TESTE · lançamentos daqui não valem</div>
   <div class="marca">LINS AGROINDUSTRIAL</div>
   <h1>Livro de Ocorrências de Turno</h1>
   <div class="sub">Manutenção · digite o número do seu crachá</div>
@@ -395,6 +396,18 @@ function erroGeral(msg) { if (erroAtual) erroAtual(msg); else toast(msg); }
 function carregando(on) { document.getElementById('carregando').classList.toggle('oculto', !on); }
 
 /* ================= LOGIN ================= */
+(function verAmbiente() {
+  if (typeof google === 'undefined' || !google.script) return;
+  google.script.run.withSuccessHandler(function (r) {
+    if (!r || !r.teste) return;
+    document.getElementById('faixaTeste').classList.remove('oculto');
+    document.title = '[TESTE] ' + document.title;
+    var st = document.createElement('style');
+    st.textContent = 'header{border-top:6px solid #FFDE1A}';
+    document.head.appendChild(st);
+  }).infoSite();
+})();
+
 (function montarTeclado() {
   var t = document.getElementById('teclado');
   ['1','2','3','4','5','6','7','8','9','⌫','0','ENTRAR'].forEach(function (k) {

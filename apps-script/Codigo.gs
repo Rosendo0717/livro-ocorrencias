@@ -49,7 +49,8 @@ const CONFIG_PADRAO = [
   ['EMAILS_LIDERES', '', 'Separe por vírgula: lider1@empresa.com, lider2@empresa.com'],
   ['EMAIL_ADMIN', '', 'Recebe aviso se o envio automático falhar (vazio = dono da planilha)'],
   ['ENVIO_ATIVO', 'SIM', 'SIM ou NAO'],
-  ['LOGOUT_MIN', '5', 'Minutos sem uso para o tablet voltar à tela do crachá']
+  ['LOGOUT_MIN', '5', 'Minutos sem uso para o tablet voltar à tela do crachá'],
+  ['AMBIENTE', 'PRODUCAO', 'PRODUCAO ou TESTE (TESTE mostra faixa amarela no site e [TESTE] no assunto do e-mail)']
 ];
 
 /* =================== SITE =================== */
@@ -69,6 +70,8 @@ function onOpen() {
     .addItem('Enviar relatório de um turno agora...', 'enviarManual')
     .addItem('Reinstalar envio automático', 'instalarGatilho')
     .addItem('Definir senha do administrador', 'definirSenhaAdmin')
+    .addSeparator()
+    .addItem('Limpar histórico de lançamentos...', 'limparHistorico')
     .addToUi();
 }
 
@@ -643,7 +646,7 @@ function enviarOficina_(dk, turno, of, modo, cfg) {
   const dados = montarDados_(dk, turno, cfg, of);
   const html = montarHtml_(dados, cfg);
   const nomeTurno = turno === 'D' ? '6x1' : 'Turno ' + turno;
-  const titulo = 'Livro de Ocorrências - ' + of + ' - ' + nomeTurno + ' - ' + dkToBr(dk);
+  const titulo = (ehTeste_(cfg) ? '[TESTE] ' : '') + 'Livro de Ocorrências - ' + of + ' - ' + nomeTurno + ' - ' + dkToBr(dk);
   const pdf = HtmlService.createHtmlOutput(html).getBlob().getAs(MimeType.PDF)
     .setName('Livro_Ocorrencias_' + of.replace(/[^A-Z0-9]+/gi, '_') + '_' + dk + '_' + nomeTurno.replace(' ', '_') + '.pdf');
   MailApp.sendEmail({ to: emails.join(','), subject: titulo, htmlBody: html, attachments: [pdf], name: 'Livro de Ocorrências' });
@@ -1120,4 +1123,46 @@ function liderPainel(cracha, dkPedido) {
   return { nome: p.nome, oficina: of || 'TODAS', dk: dk, br: dkToBr(dk), hoje: now.dk,
     turnoAtual: TURNOS.filter(function (t) { return opcoes[t].atual; })[0] || 'A',
     ocorrencias: ocos, escalados: escalados, pendencias: pend, enviado: enviado, janelas: janelas, logoutMin: cfg.logout };
+}
+
+
+/*****************************************************************
+ * AMBIENTE DE TESTE E LIMPEZA DO HISTÓRICO
+ *****************************************************************/
+
+function ehTeste_(cfg) { return String((cfg || config_()).AMBIENTE || '').trim().toUpperCase() === 'TESTE'; }
+
+// Chamado pela tela do crachá para saber se mostra a faixa de teste
+function infoSite() { return { teste: ehTeste_() }; }
+
+// Apaga lançamentos, pendências e registro de envios. Mantém Cadastro, Excecoes e Config.
+// Antes de apagar, guarda uma cópia numa planilha nova no seu Drive.
+function limparHistorico() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Limpar histórico de lançamentos',
+    'Isso apaga TODOS os lançamentos, pendências e registros de envio.\n' +
+    'Funcionários, escala e configurações continuam.\n' +
+    'Uma cópia de segurança será salva no seu Google Drive antes.\n\n' +
+    'Para confirmar, digite LIMPAR:', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  if (r.getResponseText().trim().toUpperCase() !== 'LIMPAR') { ui.alert('Nada foi apagado.'); return; }
+
+  const ss = ss_();
+  const backup = SpreadsheetApp.create('Backup Livro de Ocorrências ' + agora().carimbo.replace(/[\/:]/g, '-'));
+  [ABA.OCO, ABA.PEN, ABA.ENV].forEach(function (nome) {
+    ss.getSheetByName(nome).copyTo(backup).setName(nome);
+  });
+  const vazia = backup.getSheets()[0];
+  if (backup.getSheets().length > 1 && vazia.getLastRow() === 0) backup.deleteSheet(vazia);
+
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    [ABA.OCO, ABA.PEN, ABA.ENV].forEach(function (nome) {
+      const sh = aba_(nome);
+      if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
+    });
+    const props = PropertiesService.getScriptProperties();
+    props.deleteProperty('ULTIMA_FALHA'); props.deleteProperty('FALHA_AVISADA');
+  } finally { lock.releaseLock(); }
+  ui.alert('Histórico apagado.\n\nCópia de segurança: "' + backup.getName() + '" no seu Google Drive.');
 }

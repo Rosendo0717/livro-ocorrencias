@@ -35,3 +35,13 @@ Substitua o conteúdo dos dois arquivos, execute `setup` de novo e publique em
 Os horários de cada turno e do envio do e-mail são ajustados em **Administrador → Configurações**.
 
 Dados de funcionários, crachás e lançamentos ficam só na planilha e não fazem parte deste repositório.
+
+## Ambiente de teste
+
+Para ter um site só de teste: na planilha, **Arquivo → Fazer uma cópia** (o código vem junto). Na cópia,
+rode o `setup`, mude **AMBIENTE** para `TESTE` na aba Config (faixa amarela no site e `[TESTE]` no assunto
+do e-mail), coloque o seu e-mail como líder e publique uma implantação própria. O site de teste tem link,
+planilha e lançamentos separados do oficial.
+
+Para zerar os lançamentos: menu da planilha **Livro de Ocorrências → Limpar histórico de lançamentos...**
+(apaga Ocorrencias, Pendencias e Envios; mantém Cadastro, Excecoes e Config; salva um backup no Drive antes).
