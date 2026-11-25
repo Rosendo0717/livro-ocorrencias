@@ -57,9 +57,16 @@ const CONFIG_PADRAO = [
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('Livro de Ocorrências')
+    .setTitle(tituloSite_())
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Nome da aba do navegador: "[TESTE]" na frente quando AMBIENTE = TESTE
+function tituloSite_() {
+  let teste = false;
+  try { teste = ehTeste_(); } catch (e) {}
+  return (teste ? '[TESTE] ' : '') + 'Livro de Ocorrências';
 }
 
 /* =================== MENU NA PLANILHA =================== */
