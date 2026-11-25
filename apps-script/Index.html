@@ -516,7 +516,8 @@ function recarregar() {
 function aplicar(d) {
   S.dados = d;
   var av = '';
-  var esperado = S.user.turno === S.turno && !S.user.foraEscala;
+  // aviso só quando o turno escolhido não é o da escala da pessoa naquela data
+  var esperado = S.user.escalaPorDia ? S.user.escalaPorDia[S.dk] === S.turno : (S.user.turno === S.turno && !S.user.foraEscala);
   if (!esperado) av += '<div class="aviso amarelo">Você está lançando no ' + rt(S.turno) + ' de ' + br(S.dk) +
       ', que não é o da sua escala. O lançamento fica marcado como "fora da escala".</div>';
   if (d.enviado) av += '<div class="aviso azul">O relatório deste turno já foi enviado aos líderes. Novos lançamentos ficam registrados como "após envio".</div>';

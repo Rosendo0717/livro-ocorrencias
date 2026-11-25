@@ -340,6 +340,7 @@ function identificar(crachaDigitado) {
     cracha: p.cracha, nome: p.nome, oficina: p.oficina, lider: p.lider,
     turno: sug.turno, dk: sug.dk, br: dkToBr(sug.dk),
     escalaHoje: turnoEscala(p, now.dk, excs),
+    escalaPorDia: [-1, 0, 1].reduce(function (m, k) { const d = dkAdd(now.dk, k); m[d] = turnoEscala(p, d, excs); return m; }, {}),
     foraEscala: foraEscala, opcoes: opcoes, logoutMin: cfg.logout
   };
 }
