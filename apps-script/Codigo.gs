@@ -114,8 +114,13 @@ function setup() {
   if (padrao && ss.getSheets().length > 1) ss.deleteSheet(padrao);
 
   instalarGatilho();
+  const ui = ui_();
+  if (!ui) {   // rodado pelo editor do Apps Script: sem janelas na planilha
+    console.log('Configuração concluída. Agora, na PLANILHA, use o menu Livro de Ocorrências > Definir senha do administrador.');
+    return;
+  }
   if (!PropertiesService.getScriptProperties().getProperty('ADMIN_HASH')) definirSenhaAdmin();
-  SpreadsheetApp.getUi().alert('Configuração concluída.\n\n1) Preencha a aba Cadastro com os eletricistas.\n' +
+  ui.alert('Configuração concluída.\n\n1) Preencha a aba Cadastro com os eletricistas.\n' +
     '2) Coloque os e-mails dos líderes na aba Config.\n3) Publique o site em Implantar > Nova implantação > App da Web.');
 }
 
@@ -812,8 +817,12 @@ function hash_(s) {
   return Utilities.base64Encode(b);
 }
 
+// Janelas da planilha só existem quando a função é chamada pelo menu da planilha
+function ui_() { try { return SpreadsheetApp.getUi(); } catch (e) { return null; } }
+
 function definirSenhaAdmin() {
-  const ui = SpreadsheetApp.getUi();
+  const ui = ui_();
+  if (!ui) throw new Error('Abra a PLANILHA e use o menu Livro de Ocorrências > Definir senha do administrador.');
   const r1 = ui.prompt('Senha do administrador', 'Digite a nova senha (mínimo 6 caracteres):', ui.ButtonSet.OK_CANCEL);
   if (r1.getSelectedButton() !== ui.Button.OK) return;
   const r2 = ui.prompt('Senha do administrador', 'Repita a senha:', ui.ButtonSet.OK_CANCEL);
