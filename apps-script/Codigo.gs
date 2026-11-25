@@ -11,7 +11,7 @@
  *   Envios      -> registro dos relatórios já enviados
  *****************************************************************/
 
-const ABA = { CAD: 'Cadastro', EXC: 'Excecoes', OCO: 'Ocorrencias', PEN: 'Pendencias', CFG: 'Config', ENV: 'Envios' };
+const ABA = { CAD: 'Cadastro', EXC: 'Excecoes', OCO: 'Ocorrencias', PEN: 'Pendencias', CFG: 'Config', ENV: 'Envios', APT: 'Apontamento' };
 const TZ = 'America/Sao_Paulo';
 const UTC_OFFSET_H = 3;            // Brasil sem horário de verão: hora local = UTC-3
 const TURNOS = ['A', 'B', 'C', 'D'];   // D = 6x1 (tem relatório e horário de envio próprios)
@@ -29,7 +29,9 @@ const CAB = {
                 'Ordem/Nota', 'Situação', 'Status original', 'ID ocorrência origem', 'Finalizada em',
                 'Turno finalização', 'Crachá finalizador', 'Nome finalizador', 'O que foi feito', 'Registrado em', 'Equipamento/TAG', 'Oficina'],
   Config:      ['Parâmetro', 'Valor', 'Observação'],
-  Envios:      ['Data turno', 'Turno', 'Enviado em', 'Destinatários', 'Ocorrências', 'Modo', 'Oficina']
+  Envios:      ['Data turno', 'Turno', 'Enviado em', 'Destinatários', 'Ocorrências', 'Modo', 'Oficina'],
+  Apontamento: ['Nº pessoal', 'Empregado', 'Centro de Trabalho', 'Data', 'Dia', 'Turno/jornada', 'Horas apontadas',
+                'Horas disponíveis', '% Apontamento', 'Meta', 'Apurado?', 'Trabalhou?', 'Na meta?', 'Situação', 'Importado em']
 };
 
 const CONFIG_PADRAO = [
@@ -1137,7 +1139,8 @@ function liderPainel(cracha, dkPedido) {
       statusOriginal: P(r, 'Status original'), equipamento: P(r, 'Equipamento/TAG') || '', oficina: ofDe_(P(r, 'Oficina'), P(r, 'Crachá'), mapa) };
   }).sort(function (a, b) { return b.dias - a.dias; });
 
-  return { nome: p.nome, oficina: of || 'TODAS', dk: dk, br: dkToBr(dk), hoje: now.dk,
+  const apont = resumoApontamentoOficina_(of, dk);
+  return { apontamento: apont, nome: p.nome, oficina: of || 'TODAS', dk: dk, br: dkToBr(dk), hoje: now.dk,
     turnoAtual: TURNOS.filter(function (t) { return opcoes[t].atual; })[0] || 'A',
     ocorrencias: ocos, escalados: escalados, pendencias: pend, enviado: enviado, janelas: janelas, logoutMin: cfg.logout };
 }
@@ -1182,4 +1185,106 @@ function limparHistorico() {
     props.deleteProperty('ULTIMA_FALHA'); props.deleteProperty('FALHA_AVISADA');
   } finally { lock.releaseLock(); }
   ui.alert('Histórico apagado.\n\nCópia de segurança: "' + backup.getName() + '" no seu Google Drive.');
+}
+
+
+/*****************************************************************
+ * APONTAMENTO SAP (IW47) – importado da planilha de apuração (aba "Base Diária")
+ *****************************************************************/
+
+function aptLinhas_() {
+  return ler_(ABA.APT).rows.filter(function (r) { return r[0] !== '' && r[3]; }).map(function (r) {
+    const num = function (v) { return v === '' || v === null ? null : Number(v); };
+    return { cracha: normCracha(r[0]), nome: String(r[1]), centro: normOf_(r[2]), dk: paraDk(r[3]), dia: String(r[4] || ''),
+      turno: String(r[5] || ''), hAp: num(r[6]) || 0, hDisp: num(r[7]), pct: num(r[8]), meta: num(r[9]),
+      apurado: r[10] === 'Sim', trabalhou: r[11] === 'Sim', naMeta: r[12] === 'Sim', situacao: String(r[13] || '').trim() };
+  });
+}
+
+function aptInfo_() {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('APONT_INFO') || 'null'); } catch (e) { return null; }
+}
+
+// Indicadores de um conjunto de dias (mesma regra da planilha: IAP ponderado e IAM)
+function aptResumo_(linhas) {
+  let ap = 0, disp = 0, trab = 0, meta = 0, faltas = 0;
+  linhas.forEach(function (l) {
+    if (l.apurado) { ap += l.hAp; disp += l.hDisp || 0; }
+    if (l.trabalhou) { trab++; if (l.naMeta) meta++; }
+    if (/^falta de registro/i.test(l.situacao)) faltas++;
+  });
+  return { horasAp: Math.round(ap * 100) / 100, horasDisp: Math.round(disp * 100) / 100,
+    iap: disp ? ap / disp : null, iam: trab ? meta / trab : null, diasTrab: trab, diasMeta: meta, faltas: faltas };
+}
+
+// Recebe as linhas lidas no navegador. Substitui as datas que vierem no arquivo e mantém as outras.
+function adminImportarApontamento(token, linhas) {
+  exigirAdmin_(token);
+  if (!linhas || !linhas.length) throw new Error('Nenhuma linha encontrada na aba "Base Diária".');
+  const carimbo = agora().carimbo;
+  const novas = linhas.map(function (l) {
+    return [normCracha(l[0]), String(l[1] || ''), String(l[2] || '').trim().toUpperCase(), dkToBr(l[3]), l[4] || '', l[5] || '',
+      l[6] === '' || l[6] === null ? 0 : Number(l[6]), l[7] === '' || l[7] === null ? '' : Number(l[7]),
+      l[8] === '' || l[8] === null ? '' : Number(l[8]), l[9] === '' || l[9] === null ? '' : Number(l[9]),
+      l[10] || '', l[11] || '', l[12] || '', String(l[13] || '').trim(), carimbo];
+  });
+  const datas = {};
+  novas.forEach(function (r) { datas[paraDk(r[3])] = 1; });
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    let sh = ss_().getSheetByName(ABA.APT);
+    if (!sh) {
+      sh = ss_().insertSheet(ABA.APT);
+      sh.getRange(1, 1, 1, CAB.Apontamento.length).setValues([CAB.Apontamento]).setFontWeight('bold').setBackground('#0032A0').setFontColor('#FFFFFF');
+      sh.setFrozenRows(1);
+    }
+    const n = sh.getLastRow() - 1;
+    const antigas = n > 0 ? sh.getRange(2, 1, n, CAB.Apontamento.length).getValues().filter(function (r) { return !datas[paraDk(r[3])]; }) : [];
+    const todas = antigas.concat(novas);
+    if (n > 0) sh.getRange(2, 1, n, CAB.Apontamento.length).clearContent();
+    sh.getRange(2, 1, todas.length, CAB.Apontamento.length).setNumberFormat('@').setValues(todas.map(function (r) { return r.map(String); }));
+  } finally { lock.releaseLock(); }
+  const lista = Object.keys(datas).sort();
+  const info = { em: carimbo, de: lista[0], ate: lista[lista.length - 1], linhas: novas.length };
+  PropertiesService.getScriptProperties().setProperty('APONT_INFO', JSON.stringify(info));
+  return info;
+}
+
+function adminInfoApontamento(token) { exigirAdmin_(token); return aptInfo_(); }
+
+// Tela do colaborador: últimos 31 dias com dados e o resumo do mês mais recente
+function meuApontamento(cracha) {
+  cracha = normCracha(cracha);
+  const minhas = aptLinhas_().filter(function (l) { return l.cracha === cracha; }).sort(function (a, b) { return a.dk < b.dk ? 1 : -1; });
+  const info = aptInfo_();
+  if (!minhas.length) return { info: info, dias: [], resumo: null, periodo: '' };
+  const per = periodoApt_(info, minhas);
+  return { info: info, periodo: per.txt, resumo: aptResumo_(minhas.filter(function (l) { return l.dk >= per.de && l.dk <= per.ate; })),
+    dias: minhas.slice(0, 31).map(function (l) { l.br = dkToBr(l.dk); return l; }) };
+}
+
+// Líder: por pessoa no mês da data escolhida (ou o mês mais recente com dados)
+function resumoApontamentoOficina_(of, dk) {
+  const todas = aptLinhas_().filter(function (l) { return !of || l.centro === of; });
+  if (!todas.length) return null;
+  const per = periodoApt_(aptInfo_(), todas);
+  const doMes = todas.filter(function (l) { return l.dk >= per.de && l.dk <= per.ate; });
+  const ultimo = doMes.reduce(function (m, l) { return l.dk > m && l.situacao ? l.dk : m; }, '');
+  const pess = {};
+  doMes.forEach(function (l) { (pess[l.cracha] = pess[l.cracha] || { cracha: l.cracha, nome: l.nome, linhas: [] }).linhas.push(l); });
+  const pessoas = Object.keys(pess).map(function (k) {
+    const p = pess[k], r = aptResumo_(p.linhas);
+    const ult = p.linhas.filter(function (l) { return l.dk === ultimo; })[0];
+    r.cracha = p.cracha; r.nome = p.nome;
+    r.ultimo = ult ? { pct: ult.pct, situacao: ult.situacao } : null;
+    return r;
+  }).sort(function (a, b) { return (a.iap === null ? 9 : a.iap) - (b.iap === null ? 9 : b.iap); });
+  return { periodo: per.txt, ultimo: ultimo ? dkToBr(ultimo) : '', geral: aptResumo_(doMes), pessoas: pessoas, info: aptInfo_() };
+}
+
+// Período apurado = o do último arquivo importado (o mesmo que os painéis da planilha usam)
+function periodoApt_(info, linhas) {
+  let de = info && info.de, ate = info && info.ate;
+  if (!de) { de = linhas.reduce(function (m, l) { return !m || l.dk < m ? l.dk : m; }, ''); ate = linhas.reduce(function (m, l) { return l.dk > m ? l.dk : m; }, ''); }
+  return { de: de, ate: ate, txt: dkToBr(de).slice(0, 5) + ' a ' + dkToBr(ate) };
 }

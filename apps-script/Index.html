@@ -148,6 +148,14 @@
   .kpi span{font-size:12px;color:var(--suave);font-weight:600}
   .barra{background:var(--fundo);border-radius:6px;height:12px;min-width:80px;overflow:hidden}
   .barra i{display:block;height:100%;background:var(--verde)}
+  /* ---------- APONTAMENTO ---------- */
+  .aptDias{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:8px}
+  .aptDia{border-radius:10px;padding:8px 6px;text-align:center;font-size:12px;border:1px solid var(--borda)}
+  .aptDia b{display:block;font-size:20px;margin:2px 0}
+  .apt-ok{background:#E6F6EC;border-color:#9FDDB6}.apt-ok b{color:var(--ok)}
+  .apt-baixo{background:#FFF6D6;border-color:#F2D46B}.apt-baixo b{color:#B37400}
+  .apt-falta{background:#FDECEA;border-color:#F3B3AD}.apt-falta b{color:var(--pen)}
+  .apt-neutro{background:var(--fundo);color:var(--suave)}.apt-neutro b{color:var(--suave);font-size:14px}
 </style>
 </head>
 <body>
@@ -190,6 +198,7 @@
     <button data-aba="func" onclick="admAba('func')">FUNCIONÁRIOS</button>
     <button data-aba="escala" onclick="admAba('escala')">ESCALA</button>
     <button data-aba="rel" onclick="admAba('rel')">RELATÓRIOS</button>
+    <button data-aba="apont" onclick="admAba('apont')">APONTAMENTO</button>
     <button data-aba="cfg" onclick="admAba('cfg')">CONFIGURAÇÕES</button>
   </nav>
   <main id="admConteudo"></main>
@@ -206,6 +215,7 @@
   <nav>
     <button data-aba="minhas" class="ativo" onclick="trocarAba('minhas')">MEUS LANÇAMENTOS</button>
     <button data-aba="pend" onclick="trocarAba('pend')">PENDÊNCIAS <span class="bolha" id="qtdPend">0</span></button>
+    <button data-aba="apont" onclick="trocarAba('apont')">MEU APONTAMENTO</button>
   </nav>
   <main><div class="barraNova"><button onclick="novaOcorrencia()">+ NOVA OCORRÊNCIA</button></div><div id="conteudo"></div></main>
 </section>
@@ -532,8 +542,14 @@ function aplicar(d) {
 function trocarAba(a) {
   S.aba = a;
   Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.classList.toggle('ativo', b.getAttribute('data-aba') === a); });
+  var bn = document.querySelector('#telaPrincipal .barraNova'); if (bn) bn.classList.toggle('oculto', a === 'apont');
   var d = S.dados; if (!d) return;
   var c = document.getElementById('conteudo');
+  if (a === 'apont') {
+    c.innerHTML = '<div class="vazio">Carregando...</div>';
+    erroAtual = null;
+    return api('meuApontamento', [S.cracha], function (r) { if (S.aba === 'apont') c.innerHTML = aptColabHtml(r); });
+  }
   if (a === 'minhas') {
     var m = d.ocorrencias.filter(function (o) { return o.cracha === S.cracha; });
     c.innerHTML = m.length ? m.map(function (o) { return cartao(o, true); }).join('')
@@ -874,7 +890,7 @@ function liderDashHtml() {
       hh(ot.reduce(function (s, x) { return s + minutos(x); }, 0)) + '</td><td>' + Object.keys(lt).length + ' / ' + et.length + '</td><td>' +
       (d.enviado[t] ? '<span style="color:var(--ok);font-weight:700">Enviado</span>' : '—') + '</td></tr>';
   });
-  h += '</table><div class="secao">Por pessoa</div>';
+  h += '</table>' + aptLiderHtml(d.apontamento) + '<div class="secao">Por pessoa (lançamentos do dia)</div>';
   if (!lista.length) return h + '<div class="vazio">Ninguém escalado ou com lançamento neste dia.</div>';
   h += '<table class="tabela"><tr><th>NOME</th><th>TURNO</th><th>OCORR.</th><th>CONCL.</th><th>ANDAM.</th><th>SEM ORDEM</th><th>HORAS</th><th style="width:22%"></th><th>1º / ÚLTIMO</th></tr>';
   lista.forEach(function (p) {
@@ -884,6 +900,122 @@ function liderDashHtml() {
       (p.ini ? esc(p.ini) + ' – ' + esc(p.fim || '…') : '—') + '</td></tr>';
   });
   return h + '</table>';
+}
+
+
+/* ================= APONTAMENTO SAP ================= */
+function fmtH(v) { return (Math.round(Number(v || 0) * 100) / 100).toFixed(2).replace('.', ','); }
+function pctTxt(v) { return v === null || v === undefined || v === '' ? '—' : Math.round(v * 100) + '%'; }
+function aptClasse(l) {
+  if (/^falta/i.test(l.situacao)) return 'apt-falta';
+  if (!l.apurado || l.pct === null) return 'apt-neutro';
+  return l.naMeta ? 'apt-ok' : 'apt-baixo';
+}
+var MESES = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+function nomeMes(ym) { return ym ? MESES[+ym.slice(5, 7) - 1] + '/' + ym.slice(0, 4) : ''; }
+function aptAtualizado(info) {
+  return info ? 'Dados do SAP (IW47) até <b>' + br(info.ate) + '</b> · importado em ' + esc(info.em) : 'O apontamento ainda não foi importado.';
+}
+
+function aptColabHtml(r) {
+  if (!r.dias.length) return '<div class="vazio">Ainda não há apontamento seu importado do SAP.<br><small>' + aptAtualizado(r.info) + '</small></div>';
+  var x = r.resumo, cor = x.iap === null ? 'var(--suave)' : x.iap >= 0.8 ? 'var(--ok)' : 'var(--pen)';
+  var kpi = function (v, t, c) { return '<div class="kpi"><b' + (c ? ' style="color:' + c + '"' : '') + '>' + v + '</b><span>' + t + '</span></div>'; };
+  var h = '<div class="resumo" style="font-size:13px">' + aptAtualizado(r.info) + '</div>' +
+    '<div class="secao" style="margin-top:4px">Período ' + esc(r.periodo) + '</div><div class="kpis">' +
+    kpi(pctTxt(x.iap), '% APONTAMENTO (META 80%)', cor) + kpi(x.horasAp.toFixed(1).replace('.', ',') + ' h', 'HORAS APONTADAS') +
+    kpi(x.diasMeta + ' / ' + x.diasTrab, 'DIAS NA META') + kpi(x.faltas, 'DIAS SEM REGISTRO', x.faltas ? 'var(--pen)' : '') + '</div>';
+  h += '<div class="secao">Dia a dia</div><div class="aptDias">' + r.dias.map(function (l) {
+    var meio = l.apurado && l.pct !== null ? pctTxt(l.pct) : esc(l.situacao || '—');
+    var sub = l.apurado && l.hDisp ? fmtH(l.hAp) + ' de ' + fmtH(l.hDisp) + ' h' : '';
+    return '<div class="aptDia ' + aptClasse(l) + '">' + esc(l.dia).toUpperCase() + ' ' + l.br.slice(0, 5) + '<b>' + meio + '</b>' + sub + '</div>';
+  }).join('') + '</div>';
+  return h + '<div class="ctx" style="margin-top:12px;font-size:12px;color:var(--suave)">Verde: na meta · Amarelo: abaixo da meta · Vermelho: dia sem registro no SAP · Cinza: folga, férias, atestado ou treinamento.</div>';
+}
+
+function aptLiderHtml(a) {
+  if (!a) return '<div class="secao">Apontamento SAP</div><div class="vazio" style="padding:12px">O apontamento ainda não foi importado.</div>';
+  var g = a.geral;
+  var h = '<div class="secao">Apontamento SAP – período ' + esc(a.periodo) + '</div><div class="resumo" style="font-size:13px">' + aptAtualizado(a.info) +
+    ' · Oficina: <b>' + pctTxt(g.iap) + '</b> apontado · <b>' + pctTxt(g.iam) + '</b> dos dias na meta · <b>' + g.faltas + '</b> dia(s) sem registro</div>';
+  h += '<table class="tabela"><tr><th>NOME</th><th>% APONT. PERÍODO</th><th style="width:20%"></th><th>DIAS NA META</th><th>SEM REGISTRO</th><th>ÚLTIMO DIA (' + esc(a.ultimo.slice(0, 5)) + ')</th></tr>';
+  a.pessoas.forEach(function (p) {
+    var cor = p.iap === null ? 'var(--suave)' : p.iap >= 0.8 ? 'var(--ok)' : 'var(--pen)';
+    var u = p.ultimo ? (p.ultimo.pct !== null && p.ultimo.pct !== '' ? pctTxt(p.ultimo.pct) : esc(p.ultimo.situacao || '—')) : '—';
+    h += '<tr><td><b>' + esc(p.nome) + '</b></td><td style="color:' + cor + ';font-weight:700">' + pctTxt(p.iap) + '</td><td><div class="barra"><i style="width:' +
+      Math.min(100, Math.round((p.iap || 0) * 100)) + '%;background:' + cor + '"></i></div></td><td>' + p.diasMeta + ' / ' + p.diasTrab +
+      '</td><td' + (p.faltas ? ' style="color:var(--pen);font-weight:700"' : '') + '>' + p.faltas + '</td><td>' + u + '</td></tr>';
+  });
+  return h + '</table>';
+}
+
+/* ----- Importação (administrador) ----- */
+function carregarSheetJS(ok) {
+  if (window.XLSX) return ok();
+  var sc = document.createElement('script');
+  sc.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  sc.onload = ok;
+  sc.onerror = function () { document.getElementById('apErro').textContent = 'Não consegui carregar o leitor de Excel. Verifique a internet.'; };
+  document.head.appendChild(sc);
+}
+function serialParaDk(v) {
+  if (typeof v === 'number') { var d = new Date(Math.round((v - 25569) * 86400000)); return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
+  var m = String(v || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : '';
+}
+// Lê a aba "Base Diária" e devolve as linhas no formato que o servidor grava
+function lerBaseDiaria(wb) {
+  var nome = wb.SheetNames.filter(function (n) { return n.trim().toLowerCase() === 'base diária' || n.trim().toLowerCase() === 'base diaria'; })[0];
+  if (!nome) throw new Error('O arquivo não tem a aba "Base Diária".');
+  var a = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, raw: true, defval: '' });
+  var hi = a.findIndex(function (r) { return r.indexOf('Nº pessoal') >= 0 && r.indexOf('Situação') >= 0; });
+  if (hi < 0) throw new Error('Não achei o cabeçalho da Base Diária (colunas "Nº pessoal" e "Situação").');
+  var H = a[hi], col = function (t) { var i = H.indexOf(t); if (i < 0) throw new Error('Coluna "' + t + '" não encontrada na Base Diária.'); return i; };
+  var c = { cr: col('Nº pessoal'), nm: col('Empregado'), ce: col('Centro de Trabalho'), dt: col('Data'), dia: col('Dia'), tu: col('Turno / jornada aplicada'),
+    ap: col('Horas apontadas'), di: col('Horas disponíveis'), pc: col('% Apontamento'), me: col('Meta'), apu: col('Apurado?'), tr: col('Trabalhou?'),
+    nmeta: col('Na meta?'), si: col('Situação') };
+  return a.slice(hi + 1).filter(function (r) { return r[c.cr] !== '' && r[c.dt] !== '' && String(r[c.si]).trim() !== ''; }).map(function (r) {
+    return [r[c.cr], r[c.nm], r[c.ce], serialParaDk(r[c.dt]), r[c.dia], r[c.tu], r[c.ap], r[c.di], r[c.pc], r[c.me], r[c.apu], r[c.tr], r[c.nmeta], r[c.si]];
+  }).filter(function (l) { return l[3]; });
+}
+function renderApontAdm() {
+  var c = document.getElementById('admConteudo');
+  c.innerHTML = '<div class="resumo" id="apInfo">Carregando...</div>' +
+    '<div class="secao">Importar apontamento do SAP</div>' +
+    '<div class="ctx" style="color:var(--suave);font-size:13px;margin-bottom:10px">Escolha a planilha de apuração do apontamento (a mesma "Apontamento_Mes_..." com a aba <b>Base Diária</b> já calculada). ' +
+    'Os dias que vierem no arquivo substituem os que já estavam no sistema; os outros dias ficam como estão.</div>' +
+    '<input type="file" id="apArq" accept=".xlsx,.xlsm,.xls" style="text-transform:none;font-size:15px">' +
+    '<div class="erro" id="apErro"></div><div id="apPrevia"></div>';
+  api('adminInfoApontamento', [ADM.token], function (i) { document.getElementById('apInfo').innerHTML = aptAtualizado(i) + (i ? ' · ' + i.linhas + ' linhas na última importação' : ''); });
+  document.getElementById('apArq').onchange = function () {
+    var f = this.files[0]; if (!f) return;
+    var er = document.getElementById('apErro'); er.textContent = '';
+    document.getElementById('apPrevia').innerHTML = '<div class="vazio">Lendo o arquivo...</div>';
+    carregarSheetJS(function () {
+      var rd = new FileReader();
+      rd.onload = function (e) {
+        try {
+          var linhas = lerBaseDiaria(XLSX.read(new Uint8Array(e.target.result), { type: 'array' }));
+          if (!linhas.length) throw new Error('A aba Base Diária não tem linhas com Situação preenchida.');
+          ADM.aptLinhas = linhas;
+          var datas = linhas.map(function (l) { return l[3]; }).sort();
+          var pess = {}, cent = {}; linhas.forEach(function (l) { pess[l[0]] = 1; cent[String(l[2]).toUpperCase()] = 1; });
+          document.getElementById('apPrevia').innerHTML = '<div class="resumo" style="margin-top:12px"><b>' + linhas.length + '</b> linhas · <b>' + Object.keys(pess).length +
+            '</b> empregados · de <b>' + br(datas[0]) + '</b> até <b>' + br(datas[datas.length - 1]) + '</b><br>Centros: ' + Object.keys(cent).sort().join(', ') + '</div>' +
+            '<button class="bt verde" onclick="confirmarImportApont()">IMPORTAR</button>';
+        } catch (err) { document.getElementById('apPrevia').innerHTML = ''; er.textContent = err.message; }
+      };
+      rd.readAsArrayBuffer(f);
+    });
+  };
+}
+function confirmarImportApont() {
+  erroAtual = function (m) { document.getElementById('apErro').textContent = m; };
+  api('adminImportarApontamento', [ADM.token, ADM.aptLinhas], function (i) {
+    ADM.aptLinhas = null; toast('Apontamento importado: ' + i.linhas + ' linhas'); renderApontAdm();
+  });
 }
 
 /* ================= ADMINISTRADOR ================= */
@@ -921,6 +1053,7 @@ function admAba(a) {
   else if (a === 'func') renderFunc();
   else if (a === 'escala') carregarEscala();
   else if (a === 'rel') renderRel();
+  else if (a === 'apont') renderApontAdm();
   else renderCfg();
 }
 
@@ -1256,6 +1389,9 @@ var DEMO = (function () {
       return { nome:'LÍDER EXEMPLO', oficina:'INS', dk:dk, br:br(dk), hoje:dk, turnoAtual:'A', ocorrencias:o, pendencias:pend.map(function (p) { return Object.assign({ oficina:'INS' }, p); }),
         escalados:[{cracha:'1001',nome:'ELETRICISTA EXEMPLO',turno:'A'},{cracha:'1002',nome:'OUTRO ELETRICISTA',turno:'A'},{cracha:'1006',nome:'TERCEIRO TURNO A',turno:'A'},{cracha:'1003',nome:'ELETRICISTA TURNO B',turno:'B'},{cracha:'1004',nome:'ELETRICISTA TURNO C',turno:'C'}],
         enviado:{A:true,B:false,C:false,D:false}, janelas:{A:'07:00 às 15:35',B:'15:20 às 23:40',C:'23:40 às 07:00',D:'07:00 às 16:48'}, logoutMin:5 }; },
+    meuApontamento: function () { return { info:null, dias:[], resumo:null, periodo:'' }; },
+    adminInfoApontamento: function () { return null; },
+    adminImportarApontamento: function (t, l) { return { em:'agora', linhas:l.length }; },
     adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
     adminSair: function () { return true; },
     adminDados: dados,
