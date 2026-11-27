@@ -24,10 +24,10 @@ const CAB = {
   Excecoes:    ['Data início', 'Data fim', 'Crachá', 'Turno (A/B/C/D=6x1/F=folga)', 'Motivo'],
   Ocorrencias: ['ID', 'Data turno', 'Turno', 'Crachá', 'Nome', 'Ocorrência', 'Início', 'Fim', 'Status',
                 'Descrição da pendência', 'Nº LT', 'Ordem/Nota', 'Registrado em', 'Atualizado em',
-                'Fora da escala', 'Após envio', 'Ref. pendência', 'Justificativa sem ordem', 'Equipamento/TAG', 'Oficina'],
+                'Fora da escala', 'Após envio', 'Ref. pendência', 'Justificativa sem ordem', 'Equipamento/TAG', 'Oficina', 'Materiais (LIMA)'],
   Pendencias:  ['ID', 'Aberta em', 'Turno', 'Crachá', 'Nome', 'Ocorrência', 'Descrição da pendência', 'Nº LT',
                 'Ordem/Nota', 'Situação', 'Status original', 'ID ocorrência origem', 'Finalizada em',
-                'Turno finalização', 'Crachá finalizador', 'Nome finalizador', 'O que foi feito', 'Registrado em', 'Equipamento/TAG', 'Oficina'],
+                'Turno finalização', 'Crachá finalizador', 'Nome finalizador', 'O que foi feito', 'Registrado em', 'Equipamento/TAG', 'Oficina', 'Materiais (LIMA)'],
   Config:      ['Parâmetro', 'Valor', 'Observação'],
   Envios:      ['Data turno', 'Turno', 'Enviado em', 'Destinatários', 'Ocorrências', 'Modo', 'Oficina'],
   Apontamento: ['Nº pessoal', 'Empregado', 'Centro de Trabalho', 'Data', 'Dia', 'Turno/jornada', 'Horas apontadas',
@@ -370,6 +370,7 @@ function carregarTurno(cracha, turno, dk) {
         id: P('ID'), abertaEm: dkToBr(ab), dias: dkDiff(ab, now.dk), turno: P('Turno'), nome: P('Nome'),
         ocorrencia: P('Ocorrência'), descricao: P('Descrição da pendência'), lt: P('Nº LT'),
         ordem: P('Ordem/Nota'), statusOriginal: P('Status original'), equipamento: P('Equipamento/TAG') || '',
+        materiais: P('Materiais (LIMA)') || '',
         oficina: ofDe_(P('Oficina'), P('Crachá'), mapa)
       };
     }).sort(function (a, b) { return b.dias - a.dias; });
@@ -418,13 +419,14 @@ function salvarOcorrencia_(cracha, d, porAdmin) {
       row[col_(ABA.OCO, 'Ordem/Nota')] = d.ordem;
       row[col_(ABA.OCO, 'Justificativa sem ordem')] = d.justificativa;
       row[col_(ABA.OCO, 'Equipamento/TAG')] = d.equipamento;
+      row[col_(ABA.OCO, 'Materiais (LIMA)')] = d.materiais;
       if (!row[col_(ABA.OCO, 'Oficina')]) row[col_(ABA.OCO, 'Oficina')] = normOf_(p.oficina);
       row[col_(ABA.OCO, 'Atualizado em')] = now.carimbo + (porAdmin === true ? ' (ADMIN)' : '');
       sh.getRange(lin, 1, 1, row.length).setValues([row]);
       obj = ocoParaObj_(row);
     } else {
       const row = [Utilities.getUuid().slice(0, 8), dkToBr(d.dk), d.turno, p.cracha, p.nome, d.ocorrencia,
-        d.inicio, d.fim, d.status, d.descricao, d.lt, d.ordem, now.carimbo + (porAdmin === true ? ' (ADMIN)' : ''), '', fora, apos, d.ref || '', d.justificativa, d.equipamento, normOf_(p.oficina)];
+        d.inicio, d.fim, d.status, d.descricao, d.lt, d.ordem, now.carimbo + (porAdmin === true ? ' (ADMIN)' : ''), '', fora, apos, d.ref || '', d.justificativa, d.equipamento, normOf_(p.oficina), d.materiais];
       sh.appendRow(row);
       obj = ocoParaObj_(row);
     }
@@ -506,9 +508,12 @@ function validar_(d) {
   if (d.ocorrencia.length < 5) throw new Error('Descreva a ocorrência.');
   if (!d.inicio) throw new Error('Informe a hora de início.');
   // PENDENTE saiu das opções; só continua aceito para lançamentos antigos que já estavam assim
-  if (['CONCLUIDO', 'ANDAMENTO'].indexOf(d.status) < 0 && !(d.status === 'PENDENTE' && d.id)) throw new Error('Escolha o status: Concluído ou Andamento.');
+  if (['CONCLUIDO', 'ANDAMENTO', 'LIMA'].indexOf(d.status) < 0 && !(d.status === 'PENDENTE' && d.id)) throw new Error('Escolha o status: Concluído, Andamento ou LIMA.');
   if (d.status === 'CONCLUIDO' && !d.fim) throw new Error('Informe a hora de fim.');
-  if (d.status !== 'CONCLUIDO' && !d.ref && d.descricao.length < 5) throw new Error('Descreva a pendência.');
+  // LIMA: serviço parado aguardando material -> lista de materiais obrigatória (vai para Pendências)
+  d.materiais = d.status === 'LIMA' ? String(d.materiais || '').trim().toUpperCase() : '';
+  if (d.status === 'LIMA' && d.materiais.length < 3) throw new Error('Liste os materiais (LIMA).');
+  if (d.status !== 'CONCLUIDO' && d.status !== 'LIMA' && !d.ref && d.descricao.length < 5) throw new Error('Descreva a pendência.');
   d.justificativa = d.ordem ? '' : String(d.justificativa || '').trim().toUpperCase();
   if (!d.ordem && d.justificativa.length < 5) throw new Error('Informe a ordem/nota ou justifique por que está sem.');
 }
@@ -520,7 +525,7 @@ function ocoParaObj_(r) {
     ocorrencia: C('Ocorrência'), inicio: paraHm(C('Início')), fim: paraHm(C('Fim')), status: C('Status'),
     descricao: C('Descrição da pendência'), lt: C('Nº LT'), ordem: String(C('Ordem/Nota') || ''),
     foraEscala: C('Fora da escala') === 'SIM', aposEnvio: C('Após envio') === 'SIM', ref: C('Ref. pendência'),
-    justificativa: C('Justificativa sem ordem') || '', equipamento: C('Equipamento/TAG') || '',
+    justificativa: C('Justificativa sem ordem') || '', equipamento: C('Equipamento/TAG') || '', materiais: C('Materiais (LIMA)') || '',
     oficina: C('Oficina') || ''
   };
 }
@@ -555,11 +560,12 @@ function sincronizarPendencia_(o) {
     row[col_(ABA.PEN, 'Ordem/Nota')] = o.ordem;
     row[col_(ABA.PEN, 'Status original')] = o.status;
     row[col_(ABA.PEN, 'Equipamento/TAG')] = o.equipamento;
+    row[col_(ABA.PEN, 'Materiais (LIMA)')] = o.materiais || '';
     if (!row[col_(ABA.PEN, 'Oficina')]) row[col_(ABA.PEN, 'Oficina')] = o.oficina || '';
     sh.getRange(lin, 1, 1, row.length).setValues([row]);
   } else {
     sh.appendRow([Utilities.getUuid().slice(0, 8), dkToBr(o.dk), o.turno, o.cracha, o.nome, o.ocorrencia,
-      o.descricao, o.lt, o.ordem, 'ABERTA', o.status, o.id, '', '', '', '', '', '', o.equipamento, o.oficina || '']);
+      o.descricao, o.lt, o.ordem, 'ABERTA', o.status, o.id, '', '', '', '', '', '', o.equipamento, o.oficina || '', o.materiais || '']);
   }
 }
 
@@ -688,7 +694,8 @@ function montarDados_(dk, turno, cfg, of) {
   const abertas = pendRows.filter(function (r) { return P(r, 'Situação') === 'ABERTA' && daOf(r); }).map(function (r) {
     return { abertaEm: P(r, 'Aberta em'), dias: dkDiff(paraDk(P(r, 'Aberta em')), hoje), turno: P(r, 'Turno'),
       nome: P(r, 'Nome'), ocorrencia: P(r, 'Ocorrência'), descricao: P(r, 'Descrição da pendência'),
-      ordem: P(r, 'Ordem/Nota'), status: P(r, 'Status original'), equipamento: P(r, 'Equipamento/TAG') || '' };
+      ordem: P(r, 'Ordem/Nota'), status: P(r, 'Status original'), equipamento: P(r, 'Equipamento/TAG') || '',
+      materiais: P(r, 'Materiais (LIMA)') || '' };
   }).sort(function (a, b) { return b.dias - a.dias; });
   const finalizadas = pendRows.filter(function (r) {
     return P(r, 'Situação') === 'FINALIZADA' && paraDk(P(r, 'Finalizada em')) === dk && P(r, 'Turno finalização') === turno && daOf(r);
@@ -697,7 +704,7 @@ function montarDados_(dk, turno, cfg, of) {
       por: P(r, 'Nome finalizador'), feito: P(r, 'O que foi feito') };
   });
 
-  const cont = { CONCLUIDO: 0, ANDAMENTO: 0, PENDENTE: 0 };
+  const cont = { CONCLUIDO: 0, ANDAMENTO: 0, PENDENTE: 0, LIMA: 0 };
   ocos.forEach(function (o) { cont[o.status] = (cont[o.status] || 0) + 1; });
   return { dk: dk, turno: turno, oficina: of, ocorrencias: ocos, escalados: escal.length, lancaram: Object.keys(lancaram).length,
     naoLancaram: naoLancaram, foraEscala: foraEscala, abertas: abertas, finalizadas: finalizadas, cont: cont };
@@ -710,8 +717,8 @@ function esc_(s) {
 
 function montarHtml_(d, cfg) {
   const AZUL = '#0032A0', VERDE = '#00B5AD';
-  const corStatus = { CONCLUIDO: '#00A651', ANDAMENTO: '#FFDE1A', PENDENTE: '#E53935' };
-  const txtStatus = { CONCLUIDO: '#000', ANDAMENTO: '#000', PENDENTE: '#fff' };
+  const corStatus = { CONCLUIDO: '#00A651', ANDAMENTO: '#FFDE1A', PENDENTE: '#E53935', LIMA: '#7F5CFA' };
+  const txtStatus = { CONCLUIDO: '#000', ANDAMENTO: '#000', PENDENTE: '#fff' , LIMA: '#fff' };
   const td = 'border:1px solid #BFC7D5;padding:4px 6px;font-size:12px;vertical-align:middle;';
   const th = 'border:1px solid #BFC7D5;padding:6px;font-size:12px;background:' + AZUL + ';color:#fff;';
   const j = cfg.turnos[d.turno];
@@ -730,7 +737,7 @@ function montarHtml_(d, cfg) {
   };
   h += '<table style="width:100%;border-collapse:collapse;margin:10px 0"><tr>' +
     card('OCORRÊNCIAS', d.ocorrencias.length, AZUL) + card('CONCLUÍDAS', d.cont.CONCLUIDO || 0, '#00A651') +
-    card('EM ANDAMENTO', d.cont.ANDAMENTO || 0, '#B38F00') + card('PENDENTES', d.cont.PENDENTE || 0, '#E53935') +
+    card('EM ANDAMENTO', d.cont.ANDAMENTO || 0, '#B38F00') + card('LIMA (MATERIAL)', d.cont.LIMA || 0, '#7F5CFA') +
     card('LANÇARAM / ESCALADOS', d.lancaram + ' / ' + d.escalados, AZUL) + '</tr></table>';
 
   if (d.naoLancaram.length) {
@@ -769,7 +776,7 @@ function montarHtml_(d, cfg) {
         '<td style="' + td + 'text-align:center">' + esc_(o.inicio) + '</td>' +
         '<td style="' + td + 'text-align:center">' + esc_(o.fim) + '</td>' +
         '<td style="' + td + 'text-align:center;font-weight:bold;background:' + (corStatus[o.status] || '#fff') + ';color:' + (txtStatus[o.status] || '#000') + '">' + esc_(o.status) + '</td>' +
-        '<td style="' + td + '">' + esc_(o.descricao) + '</td>' +
+        '<td style="' + td + '">' + (o.materiais ? '<b>LIMA:</b> ' + esc_(o.materiais) : esc_(o.descricao)) + '</td>' +
         '<td style="' + td + 'text-align:center;white-space:nowrap">' + esc_(o.lt) + '</td>' +
         (o.ordem ? '<td style="' + td + 'text-align:center">' + esc_(o.ordem) + '</td></tr>'
                  : '<td style="' + td + 'font-size:11px;background:#FFF6C2"><b>SEM ORDEM:</b> ' + esc_(o.justificativa) + '</td></tr>');
@@ -804,7 +811,7 @@ function montarHtml_(d, cfg) {
       const cor = a.dias >= 7 ? '#E53935' : a.dias >= 3 ? '#FF9421' : '#1a1a1a';
       h += '<tr><td style="' + td + 'text-align:center;font-weight:bold;color:' + cor + '">' + a.dias + '</td><td style="' + td + '">' +
         esc_(a.abertaEm) + ' (' + esc_(letra_(a.turno)) + ')</td><td style="' + td + '">' + esc_(a.nome) + '</td><td style="' + td + '">' +
-        (a.equipamento ? '<b>' + esc_(a.equipamento) + '</b> – ' : '') + esc_(a.ocorrencia) + '</td><td style="' + td + '">' + esc_(a.descricao) + '</td><td style="' + td + 'text-align:center;background:' +
+        (a.equipamento ? '<b>' + esc_(a.equipamento) + '</b> – ' : '') + esc_(a.ocorrencia) + '</td><td style="' + td + '">' + (a.materiais ? '<b>LIMA:</b> ' + esc_(a.materiais) : esc_(a.descricao)) + '</td><td style="' + td + 'text-align:center;background:' +
         (corStatus[a.status] || '#fff') + ';color:' + (txtStatus[a.status] || '#000') + '">' + esc_(a.status) + '</td><td style="' + td + 'text-align:center">' +
         esc_(a.ordem) + '</td></tr>';
     });
@@ -1136,7 +1143,7 @@ function liderPainel(cracha, dkPedido) {
     const ab = paraDk(P(r, 'Aberta em'));
     return { id: P(r, 'ID'), abertaEm: dkToBr(ab), dias: dkDiff(ab, now.dk), turno: P(r, 'Turno'), nome: P(r, 'Nome'),
       ocorrencia: P(r, 'Ocorrência'), descricao: P(r, 'Descrição da pendência'), lt: P(r, 'Nº LT'), ordem: P(r, 'Ordem/Nota'),
-      statusOriginal: P(r, 'Status original'), equipamento: P(r, 'Equipamento/TAG') || '', oficina: ofDe_(P(r, 'Oficina'), P(r, 'Crachá'), mapa) };
+      statusOriginal: P(r, 'Status original'), equipamento: P(r, 'Equipamento/TAG') || '', materiais: P(r, 'Materiais (LIMA)') || '', oficina: ofDe_(P(r, 'Oficina'), P(r, 'Crachá'), mapa) };
   }).sort(function (a, b) { return b.dias - a.dias; });
 
   const apont = resumoApontamentoOficina_(of, dk);

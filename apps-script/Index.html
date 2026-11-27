@@ -62,7 +62,7 @@
   .item .det{font-size:13px;color:var(--suave);margin-top:3px}
   .item .det b{color:var(--texto)}
   .pill{display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;margin-right:6px}
-  .p-CONCLUIDO{background:var(--ok);color:#fff}.p-ANDAMENTO{background:var(--and);color:#000}.p-PENDENTE{background:var(--pen);color:#fff}
+  .p-CONCLUIDO{background:var(--ok);color:#fff}.p-ANDAMENTO{background:var(--and);color:#000}.p-PENDENTE{background:var(--pen);color:#fff}.p-LIMA{background:#7F5CFA;color:#fff}
   .acoes{display:flex;flex-direction:column;gap:6px;justify-content:center}
   .acoes button{padding:9px 14px;border-radius:9px;font-weight:700;font-size:13px;background:var(--fundo);color:var(--azul)}
   .acoes .fin{background:var(--verde);color:#fff}
@@ -84,7 +84,7 @@
   .status{display:flex;gap:8px}
   .status button{flex:1;padding:16px 6px;border-radius:10px;font-weight:700;font-size:15px;border:3px solid transparent;opacity:.45}
   .status button.sel{opacity:1;border-color:#0b1d4d}
-  .s-CONCLUIDO{background:var(--ok);color:#fff}.s-ANDAMENTO{background:var(--and);color:#000}.s-PENDENTE{background:var(--pen);color:#fff}
+  .s-CONCLUIDO{background:var(--ok);color:#fff}.s-ANDAMENTO{background:var(--and);color:#000}.s-PENDENTE{background:var(--pen);color:#fff}.s-LIMA{background:#7F5CFA;color:#fff}
   .botoes{display:flex;gap:10px;margin-top:20px}
   .botoes button{flex:1;padding:16px;border-radius:12px;font-size:17px;font-weight:700}
   .b-sec{background:var(--fundo);color:var(--azul)}
@@ -239,6 +239,7 @@
     <div class="status" id="fStatus">
       <button class="s-CONCLUIDO" data-s="CONCLUIDO">CONCLUÍDO</button>
       <button class="s-ANDAMENTO" data-s="ANDAMENTO">ANDAMENTO</button>
+      <button class="s-LIMA" data-s="LIMA">LIMA</button>
     </div>
     <div id="boxDesc" class="oculto">
       <label>DESCRIÇÃO DA PENDÊNCIA (obrigatório)</label>
@@ -251,6 +252,10 @@
     <div id="boxJust">
       <label>SEM ORDEM? JUSTIFIQUE (obrigatório sem ordem/nota)</label>
       <textarea id="fJust" placeholder="Ex.: atendimento emergencial, ordem ainda não aberta no SAP..."></textarea>
+    </div>
+    <div id="boxMat" class="oculto">
+      <label>LIMA – MATERIAIS A SEREM LISTADOS (obrigatório)</label>
+      <textarea id="fMat" placeholder="Ex.: 2 CONTATORES 3TF46, 10 M CABO PP 4X2,5 MM², 1 RELÉ TÉRMICO 3UA59"></textarea>
     </div>
     <div id="fAlerta"></div>
     <div class="erro" id="fErro"></div>
@@ -571,6 +576,7 @@ function trocarAba(a) {
 function cartao(o, editavel) {
   var det = [];
   if (o.descricao) det.push('<b>Pendência:</b> ' + esc(o.descricao));
+  if (o.materiais) det.push('<b>LIMA:</b> ' + esc(o.materiais));
   if (o.lt) det.push('<b>LT:</b> ' + esc(o.lt));
   if (o.ordem) det.push('<b>Ordem/Nota:</b> ' + esc(o.ordem));
   else if (o.justificativa) det.push('<b>Sem ordem:</b> ' + esc(o.justificativa));
@@ -588,7 +594,7 @@ function cartaoPend(p) {
   var cor = p.dias >= 7 ? 'var(--pen)' : p.dias >= 3 ? '#FF9421' : 'var(--azul)';
   return '<div class="item"><div class="dias" style="color:' + cor + '">' + p.dias + '<small>dia(s)</small></div>' +
     '<div class="corpo"><div class="txt">' + (p.equipamento ? '<span class="eq">' + esc(p.equipamento) + '</span>' : '') + esc(p.ocorrencia) + '</div><div class="det"><span class="pill p-' + p.statusOriginal + '">' +
-    rotulo(p.statusOriginal) + '</span><b>Falta:</b> ' + esc(p.descricao) + '</div><div class="det">Aberta em ' + esc(p.abertaEm) +
+    rotulo(p.statusOriginal) + '</span>' + (p.materiais ? '<b>LIMA (materiais):</b> ' + esc(p.materiais) : '<b>Falta:</b> ' + esc(p.descricao)) + '</div><div class="det">Aberta em ' + esc(p.abertaEm) +
     ' · ' + rt(p.turno) + ' · ' + esc(p.nome) + (p.ordem ? ' · Ordem ' + esc(p.ordem) : '') + (p.lt ? ' · LT ' + esc(p.lt) : '') + '</div></div>' +
     '<div class="acoes"><button class="fin" onclick="abrirFinalizar(\'' + p.id + '\')">FINALIZAR</button></div></div>';
 }
@@ -600,7 +606,8 @@ Array.prototype.forEach.call(document.querySelectorAll('#fStatus button'), funct
 function marcarStatus(s) {
   S.status = s; setTimeout(gravarRasc, 0);
   Array.prototype.forEach.call(document.querySelectorAll('#fStatus button'), function (b) { b.classList.toggle('sel', b.getAttribute('data-s') === s); });
-  document.getElementById('boxDesc').classList.toggle('oculto', !s || s === 'CONCLUIDO');
+  document.getElementById('boxDesc').classList.toggle('oculto', !s || s === 'CONCLUIDO' || s === 'LIMA');
+  document.getElementById('boxMat').classList.toggle('oculto', s !== 'LIMA');
 }
 
 var FORM_ADMIN = false;
@@ -627,6 +634,7 @@ function abrirForm(id, admin) {
   document.getElementById('fIni').value = o ? o.inicio : (admin ? '' : sugerirInicio());
   document.getElementById('fFim').value = o ? o.fim : '';
   document.getElementById('fDesc').value = o ? o.descricao : '';
+  document.getElementById('fMat').value = o ? (o.materiais || '') : '';
   document.getElementById('fLt').value = o ? o.lt : '';
   document.getElementById('fOrdem').value = o ? o.ordem : '';
   document.getElementById('fJust').value = o ? (o.justificativa || '') : '';
@@ -641,7 +649,7 @@ function abrirForm(id, admin) {
 }
 
 /* ================= RASCUNHO (guardado no tablet) ================= */
-var CAMPOS_RASC = ['fEquip','fTexto','fIni','fFim','fDesc','fLt','fOrdem','fJust'];
+var CAMPOS_RASC = ['fEquip','fTexto','fIni','fFim','fDesc','fLt','fOrdem','fJust','fMat'];
 function chaveRasc() { return 'livro_rasc_' + S.cracha; }
 function lerRasc() { try { return JSON.parse(localStorage.getItem(chaveRasc()) || 'null'); } catch (e) { return null; } }
 function limparRasc() { try { localStorage.removeItem(chaveRasc()); } catch (e) {} }
@@ -688,7 +696,7 @@ function salvar() {
   var d = {
     id: S.editId, turno: FORM_ADMIN ? ADM.turno : S.turno, dk: FORM_ADMIN ? ADM.dk : S.dk, cracha: FORM_ADMIN ? val('fPessoa') : '',
     ocorrencia: val('fTexto'), inicio: val('fIni'), fim: val('fFim'), status: S.status,
-    descricao: val('fDesc'), lt: val('fLt'), ordem: val('fOrdem'), justificativa: val('fJust'), equipamento: val('fEquip')
+    descricao: val('fDesc'), lt: val('fLt'), ordem: val('fOrdem'), justificativa: val('fJust'), equipamento: val('fEquip'), materiais: val('fMat')
   };
   var e = document.getElementById('fErro');
   if (FORM_ADMIN && !d.id && !d.cracha) return e.textContent = 'Escolha o eletricista.';
@@ -697,11 +705,13 @@ function salvar() {
   if (!d.inicio) return e.textContent = 'Informe a hora de início.';
   if (!d.status) return e.textContent = 'Escolha o status.';
   if (d.status === 'CONCLUIDO' && !d.fim) return e.textContent = 'Informe a hora de fim.';
-  if (d.status !== 'CONCLUIDO' && d.descricao.length < 5) return e.textContent = 'Descreva a pendência.';
+  if (d.status === 'LIMA' && d.materiais.length < 3) return e.textContent = 'Liste os materiais (LIMA).';
+  if (d.status === 'ANDAMENTO' && d.descricao.length < 5) return e.textContent = 'Descreva a pendência.';
   if (d.ordem && /\D/.test(d.ordem)) return e.textContent = 'Ordem/Nota deve ter só números.';
   if (!d.ordem && d.justificativa.length < 5) return e.textContent = 'Informe a ordem/nota ou justifique por que está sem.';
   if (d.ordem) d.justificativa = '';
-  if (d.status === 'CONCLUIDO') d.descricao = '';
+  if (d.status !== 'ANDAMENTO') d.descricao = '';
+  if (d.status !== 'LIMA') d.materiais = '';
   e.textContent = '';
 
   var conflito = FORM_ADMIN ? null : sobreposicao(d);
@@ -746,7 +756,7 @@ function sobreposicao(d) {
 function abrirFinalizar(id) {
   var p = S.dados.pendencias.filter(function (x) { return x.id === id; })[0];
   S.pendId = id;
-  document.getElementById('pRef').innerHTML = '<b>' + esc(p.ocorrencia) + '</b><br>Falta: ' + esc(p.descricao) +
+  document.getElementById('pRef').innerHTML = '<b>' + esc(p.ocorrencia) + '</b><br>' + (p.materiais ? 'LIMA (materiais): ' + esc(p.materiais) : 'Falta: ' + esc(p.descricao)) +
     '<br><small>Aberta em ' + esc(p.abertaEm) + ' · ' + rt(p.turno) + ' · ' + esc(p.nome) + '</small>';
   ['pFeito','pIni','pFim','pLt','pOrdem','pJust'].forEach(function (i) { document.getElementById(i).value = ''; });
   document.getElementById('pLt').value = p.lt || '';
@@ -774,7 +784,7 @@ function val(id) { return document.getElementById(id).value.trim(); }
 function fechar(id) { document.getElementById(id).classList.add('oculto'); }
 function agoraEm(id) { var n = new Date(); document.getElementById(id).value = ('0' + n.getHours()).slice(-2) + ':' + ('0' + n.getMinutes()).slice(-2); gravarRasc(); }
 function br(dk) { var p = dk.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
-function rotulo(s) { return { CONCLUIDO:'CONCLUÍDO', ANDAMENTO:'ANDAMENTO', PENDENTE:'PENDENTE' }[s] || s; }
+function rotulo(s) { return { CONCLUIDO:'CONCLUÍDO', ANDAMENTO:'ANDAMENTO', PENDENTE:'PENDENTE', LIMA:'LIMA' }[s] || s; }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function toast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); setTimeout(function () { t.classList.remove('on'); }, 2200); }
 function mostrarJust(idOrdem, idBox) { document.getElementById(idBox).classList.toggle('oculto', !!val(idOrdem)); }
@@ -859,7 +869,8 @@ function hh(m) { return Math.floor(m / 60) + 'h' + ('0' + (m % 60)).slice(-2); }
 function liderDashHtml() {
   var d = LID.dados, o = d.ocorrencias;
   var conc = o.filter(function (x) { return x.status === 'CONCLUIDO'; }).length;
-  var and = o.length - conc;
+  var lima = o.filter(function (x) { return x.status === 'LIMA'; }).length;
+  var and = o.length - conc - lima;
   var semOrdem = o.filter(function (x) { return !x.ordem; }).length;
   var totMin = o.reduce(function (s, x) { return s + minutos(x); }, 0);
   var escalados = {}; d.escalados.forEach(function (p) { escalados[p.cracha] = p; });
@@ -877,7 +888,7 @@ function liderDashHtml() {
   var maxMin = Math.max.apply(null, lista.map(function (p) { return p.min; }).concat([1]));
   var kpi = function (v, r, cor) { return '<div class="kpi"><b' + (cor ? ' style="color:' + cor + '"' : '') + '>' + v + '</b><span>' + r + '</span></div>'; };
   var h = '<div class="secao" style="margin-top:4px">Resumo do dia ' + esc(d.br) + '</div><div class="kpis">' +
-    kpi(o.length, 'OCORRÊNCIAS') + kpi(conc, 'CONCLUÍDAS', 'var(--ok)') + kpi(and, 'EM ANDAMENTO', '#B38F00') +
+    kpi(o.length, 'OCORRÊNCIAS') + kpi(conc, 'CONCLUÍDAS', 'var(--ok)') + kpi(and, 'EM ANDAMENTO', '#B38F00') + kpi(lima, 'LIMA (MATERIAL)', '#7F5CFA') +
     kpi(hh(totMin), 'HORAS LANÇADAS') + kpi(lancaram + ' / ' + d.escalados.length, 'LANÇARAM / ESCALADOS') +
     kpi(semOrdem, 'SEM ORDEM', semOrdem ? '#FF9421' : '') + kpi(d.pendencias.length, 'PENDÊNCIAS ABERTAS', d.pendencias.length ? 'var(--pen)' : '') + '</div>';
   h += '<div class="secao">Por turno</div><table class="tabela"><tr><th>TURNO</th><th>OCORR.</th><th>CONCLUÍDAS</th><th>ANDAMENTO</th><th>HORAS</th><th>LANÇARAM / ESCALADOS</th><th>RELATÓRIO</th></tr>';
@@ -1117,7 +1128,7 @@ function renderLanc() {
 function cancelarPend(id) {
   var p = ADM.lanc.pendencias.filter(function (x) { return x.id === id; })[0];
   ADM.pendId = id;
-  document.getElementById('mmRef').innerHTML = '<b>' + esc(p.ocorrencia) + '</b><br>Falta: ' + esc(p.descricao) + '<br><small>Aberta em ' + esc(p.abertaEm) + ' por ' + esc(p.nome) + '</small>';
+  document.getElementById('mmRef').innerHTML = '<b>' + esc(p.ocorrencia) + '</b><br>' + (p.materiais ? 'LIMA (materiais): ' + esc(p.materiais) : 'Falta: ' + esc(p.descricao)) + '<br><small>Aberta em ' + esc(p.abertaEm) + ' por ' + esc(p.nome) + '</small>';
   document.getElementById('mmTexto').value = '';
   document.getElementById('mmErro').textContent = '';
   document.getElementById('mMotivo').classList.remove('oculto');
@@ -1361,7 +1372,7 @@ var DEMO = (function () {
       opcoes:{ A:{dk:dk,br:br(dk)}, B:{dk:dk,br:br(dk)}, C:{dk:dk,br:br(dk)}, D:{dk:dk,br:br(dk)} } }; },
     carregarTurno: function () { return pacote(); },
     salvarOcorrencia: function (c, d) {
-      d.ocorrencia = d.ocorrencia.toUpperCase(); d.descricao = d.descricao.toUpperCase(); d.justificativa = d.justificativa.toUpperCase(); d.equipamento = d.equipamento.toUpperCase();
+      d.ocorrencia = d.ocorrencia.toUpperCase(); d.descricao = d.descricao.toUpperCase(); d.justificativa = d.justificativa.toUpperCase(); d.equipamento = d.equipamento.toUpperCase(); d.materiais = (d.materiais || '').toUpperCase();
       if (d.id) { oc = oc.map(function (o) { return o.id === d.id ? Object.assign(o, d) : o; }); }
       else { d.id = 'd' + Date.now(); d.cracha = '1001'; d.nome = 'ELETRICISTA EXEMPLO'; oc.push(d); }
       return pacote(); },
