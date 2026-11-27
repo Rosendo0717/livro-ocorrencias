@@ -168,6 +168,7 @@
 <section id="telaLider" class="oculto">
   <header class="lid">
     <div class="quem"><b id="lNome"></b><span id="lInfo"></span></div>
+    <div><select id="lOf" class="oculto" onchange="LID.of=this.value;liderCarregar(document.getElementById('lData').value)" style="font-size:15px;padding:8px;border-radius:10px;border:0;width:auto"></select></div>
     <div><input type="date" id="lData" onchange="liderCarregar(this.value)" style="font-size:15px;padding:8px;border-radius:10px;border:0;width:auto;text-transform:none"></div>
     <button class="sair" onclick="sair()">SAIR</button>
   </header>
@@ -307,13 +308,13 @@
       <option value="B,B,B,B,B,F">Turno B – 5x1</option>
       <option value="C,C,C,C,C,F">Turno C – 5x1</option>
       <option value="B,B,C,C,F,F">Folguista – 2 B, 2 C, 2 folgas</option>
-      <option value="SEM">Sem escala (só líder)</option>
+      <option value="SEM">Sem escala (só líder ou PCM)</option>
       <option value="">Personalizada...</option>
     </select>
     <div id="boxCiclo" class="oculto"><label>CICLO PERSONALIZADO (um item por dia: A, B, C, D=6x1 ou F=folga)</label><input id="pfCiclo" placeholder="EX.: A,A,A,A,A,A,F"></div>
     <div class="linha">
       <div><label>1º DIA DE SERVIÇO (1º dia de trabalho após uma folga)</label><input type="date" id="pfInicio"></div>
-      <div><label>PERFIL</label><select id="pfPerfil"><option value="COLABORADOR">Colaborador</option><option value="LIDER">Líder</option></select></div>
+      <div><label>PERFIL</label><select id="pfPerfil"><option value="COLABORADOR">Colaborador</option><option value="LIDER">Líder</option><option value="PCM">PCM (todas as oficinas)</option></select></div>
       <div><label>SITUAÇÃO</label><select id="pfAtivo"><option value="SIM">Ativo</option><option value="NAO">Inativo</option></select></div>
     </div>
     <div class="ctx" id="pfPrevia" style="margin-top:10px"></div>
@@ -359,7 +360,7 @@
       <tr><td style="color:var(--suave);width:110px">Nome</td><td><b id="cfNome"></b></td></tr>
       <tr><td style="color:var(--suave)">Turno</td><td><b id="cfTurno"></b></td></tr>
       <tr><td style="color:var(--suave)">Oficina</td><td><b id="cfOficina"></b></td></tr>
-      <tr id="cfLiderLinha" class="oculto"><td style="color:var(--suave)">Perfil</td><td><b>LÍDER</b></td></tr>
+      <tr id="cfLiderLinha" class="oculto"><td style="color:var(--suave)">Perfil</td><td><b id="cfPerfil">LÍDER</b></td></tr>
     </table>
     <div class="botoes"><button class="b-sec" onclick="voltarLogin()">VOLTAR</button><button class="b-pri" onclick="confirmarLogin()">OK</button></div>
   </div>
@@ -445,6 +446,7 @@ function entrar() {
     document.getElementById('cfTurno').textContent = rt(u.turno) + ' · ' + u.br + (u.foraEscala ? ' (fora da sua escala)' : '');
     document.getElementById('cfOficina').textContent = u.oficina || '—';
     document.getElementById('cfLiderLinha').classList.toggle('oculto', !u.lider);
+    document.getElementById('cfPerfil').textContent = u.pcm ? 'PCM (todas as oficinas)' : 'LÍDER';
     document.getElementById('cfTurno').parentNode.parentNode.classList.toggle('oculto', !!u.lider);
     document.getElementById('mConf').classList.remove('oculto');
   });
@@ -770,7 +772,7 @@ document.getElementById('pOrdem').addEventListener('input', function () { this.v
 /* ================= LÍDER ================= */
 var LID = null;
 function entrarLider(u) {
-  LID = { user: u, aba: 'turno', turno: null, dados: null };
+  LID = { user: u, aba: 'turno', turno: null, dados: null, of: '' };
   S.user = u; S.cracha = u.cracha;
   digitado = ''; tecla('');
   document.getElementById('telaLogin').classList.add('oculto');
@@ -781,11 +783,15 @@ function entrarLider(u) {
 }
 function liderCarregar(dk) {
   erroAtual = null;
-  api('liderPainel', [LID.user.cracha, dk], function (d) {
+  api('liderPainel', [LID.user.cracha, dk, LID.of || ''], function (d) {
     LID.dados = d;
+    var sel = document.getElementById('lOf');
+    sel.classList.toggle('oculto', !d.pcm);
+    if (d.pcm) sel.innerHTML = '<option value="">TODAS AS OFICINAS</option>' + d.oficinas.map(function (o) {
+      return '<option' + (o === LID.of ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('');
     if (!LID.turno) LID.turno = d.turnoAtual;
     document.getElementById('lData').value = d.dk;
-    document.getElementById('lInfo').textContent = 'Líder · Oficina ' + d.oficina + ' · ' + d.br;
+    document.getElementById('lInfo').textContent = (d.pcm ? 'PCM' : 'Líder') + ' · ' + (d.oficina === 'TODAS' ? 'Todas as oficinas' : 'Oficina ' + d.oficina) + ' · ' + d.br;
     document.getElementById('lQtdPend').textContent = d.pendencias.length;
     liderAba(LID.aba);
   });
@@ -828,7 +834,10 @@ function liderPendHtml() {
   var p = LID.dados.pendencias;
   if (!p.length) return '<div class="vazio">Nenhum serviço em andamento.</div>';
   return '<div class="resumo"><b>' + p.length + '</b> serviço(s) em andamento · mais antigo: <b>' + p[0].dias + '</b> dia(s)</div>' +
-    p.map(function (x) { return semAcoes(cartaoPend(x)); }).join('');
+    p.map(function (x) {
+      var h = semAcoes(cartaoPend(x));
+      return LID.dados.oficina === 'TODAS' ? h.replace('<div class="txt">', '<div class="txt"><span class="eq" style="background:#0032A0;color:#fff">' + esc(x.oficina) + '</span>') : h;
+    }).join('');
 }
 
 /* ----- Dashboard ----- */
@@ -1008,7 +1017,7 @@ function renderFunc(filtro) {
   h += '<div class="resumo">' + ADM.dados.pessoas.filter(function (p) { return p.ativo; }).length + ' ativos · ' + ADM.dados.pessoas.length + ' cadastrados</div>';
   h += '<table class="tabela"><tr><th>CRACHÁ</th><th>NOME</th><th>OFICINA</th><th>ESCALA</th><th>1º DIA DE SERVIÇO</th><th>SITUAÇÃO</th><th></th></tr>';
   lista.forEach(function (p) {
-    h += '<tr class="' + (p.ativo ? '' : 'inativo') + '"><td>' + esc(p.cracha) + '</td><td><b>' + esc(p.nome) + (p.lider ? ' <span class="pill" style="background:var(--azul);color:#fff">LÍDER</span>' : '') + '</b></td><td>' + esc(p.oficina || '-') + '</td><td>' + esc(p.ciclo ? nomeCiclo(p.ciclo) : '—') +
+    h += '<tr class="' + (p.ativo ? '' : 'inativo') + '"><td>' + esc(p.cracha) + '</td><td><b>' + esc(p.nome) + (p.lider ? ' <span class="pill" style="background:var(--azul);color:#fff">' + (p.pcm ? 'PCM' : 'LÍDER') + '</span>' : '') + '</b></td><td>' + esc(p.oficina || '-') + '</td><td>' + esc(p.ciclo ? nomeCiclo(p.ciclo) : '—') +
       '</td><td>' + (p.inicio ? br(p.inicio) : '-') + '</td><td>' + (p.ativo ? 'Ativo' : 'Inativo') +
       '</td><td style="text-align:right"><button class="bt sec mini" onclick="abrirPessoa(\'' + esc(p.cracha) + '\')">EDITAR</button></td></tr>';
   });
@@ -1031,7 +1040,7 @@ function abrirPessoa(cracha) {
   document.getElementById('pfCiclo').value = p ? p.ciclo : '';
   document.getElementById('pfInicio').value = p ? p.inicio : ADM.hoje;
   document.getElementById('pfAtivo').value = p && !p.ativo ? 'NAO' : 'SIM';
-  document.getElementById('pfPerfil').value = p && p.lider ? 'LIDER' : 'COLABORADOR';
+  document.getElementById('pfPerfil').value = p && p.pcm ? 'PCM' : p && p.lider ? 'LIDER' : 'COLABORADOR';
   if (p && p.lider && !p.ciclo) preset.value = 'SEM';
   document.getElementById('pfErro').textContent = '';
   presetCiclo();
@@ -1059,8 +1068,8 @@ document.getElementById('pfCracha').addEventListener('input', function () { this
 
 function salvarPessoa() {
   var p = { cracha: val('pfCracha'), nome: val('pfNome'), oficina: val('pfOficina').toUpperCase(), ciclo: cicloAtual(), inicio: val('pfInicio'), ativo: document.getElementById('pfAtivo').value === 'SIM',
-    lider: document.getElementById('pfPerfil').value === 'LIDER' };
-  if (!p.ciclo && !p.lider) { document.getElementById('pfErro').textContent = 'Só líder pode ficar sem escala.'; return; }
+    lider: document.getElementById('pfPerfil').value !== 'COLABORADOR', pcm: document.getElementById('pfPerfil').value === 'PCM' };
+  if (!p.ciclo && !p.lider) { document.getElementById('pfErro').textContent = 'Só líder ou PCM pode ficar sem escala.'; return; }
   erroAtual = function (m) { document.getElementById('pfErro').textContent = m; };
   api('adminSalvarPessoa', [ADM.token, p, ADM.pessoaOrig], function (d) { ADM.dados = d; fechar('mPessoa'); renderFunc(); toast('Funcionário salvo'); });
 }
@@ -1223,7 +1232,8 @@ var DEMO = (function () {
   var pend = [{ id:'p1', abertaEm:'05/11/2026', dias:4, turno:'B', nome:'OUTRO ELETRICISTA', equipamento:'BBA FILTRO ÓLEO LUB', ocorrencia:'TROCA DO MOTOR DA BBA DE FILTRAR ÓLEO DA LUB', descricao:'AGUARDANDO MOTOR DO ALMOXARIFADO', lt:'', ordem:'40532292', statusOriginal:'PENDENTE' }];
   function pacote() { return { ocorrencias: oc.slice(), pendencias: pend.slice(), enviado: false, equipamentos: ['BBA 3 TORRE ETANOL','CCMS','ESTEIRA TA04','CCM 4'] }; }
   var api = {
-    identificar: function (c) { if (c === '9999') return { cracha:'9999', nome:'LÍDER EXEMPLO', oficina:'INS', lider:true, br:br(dk), turno:'A', dk:dk, opcoes:{} };
+    identificar: function (c) { if (c === '8888') return { cracha:'8888', nome:'PCM EXEMPLO', oficina:'', lider:true, pcm:true, br:br(dk), turno:'A', dk:dk, opcoes:{} };
+      if (c === '9999') return { cracha:'9999', nome:'LÍDER EXEMPLO', oficina:'INS', lider:true, br:br(dk), turno:'A', dk:dk, opcoes:{} };
       return { cracha:'1001', nome:'ELETRICISTA EXEMPLO', oficina:'INSTRUMENTAÇÃO', br:br(dk), turno:'A', dk:dk, escalaHoje:'A', foraEscala:false, logoutMin:5,
       opcoes:{ A:{dk:dk,br:br(dk)}, B:{dk:dk,br:br(dk)}, C:{dk:dk,br:br(dk)}, D:{dk:dk,br:br(dk)} } }; },
     carregarTurno: function () { return pacote(); },
@@ -1250,10 +1260,11 @@ var DEMO = (function () {
     {chave:'TURNO_B_FIM',valor:'23:40'},{chave:'TURNO_C_INICIO',valor:'23:40'},{chave:'TURNO_C_FIM',valor:'07:00'},{chave:'ENVIO_A',valor:'15:50'},{chave:'TURNO_D_INICIO',valor:'07:00'},{chave:'TURNO_D_FIM',valor:'16:48'},{chave:'ENVIO_D',valor:'17:00'},{chave:'ENVIO_B',valor:'23:50'},{chave:'ENVIO_C',valor:'07:10'},
     {chave:'EMAILS_LIDERES',valor:'lider@empresa.com'},{chave:'ENVIO_ATIVO',valor:'SIM'},{chave:'LOGOUT_MIN',valor:'5'}] }; }
   Object.assign(api, {
-    liderPainel: function () {
+    liderPainel: function (c, k, of) {
       var o = oc.map(function (x) { return Object.assign({ oficina:'INS', turno:'A' }, x); });
       o.push({ id:'x9', dk:dk, turno:'B', cracha:'1003', nome:'ELETRICISTA TURNO B', equipamento:'CCM 4', ocorrencia:'VERIFICADO AQUECIMENTO', inicio:'16:00', fim:'18:30', status:'ANDAMENTO', descricao:'MONITORAR', lt:'', ordem:'40529980', oficina:'INS' });
-      return { nome:'LÍDER EXEMPLO', oficina:'INS', dk:dk, br:br(dk), hoje:dk, turnoAtual:'A', ocorrencias:o, pendencias:pend.map(function (p) { return Object.assign({ oficina:'INS' }, p); }),
+      var pcmDemo = c === '8888';
+      return { pcm:pcmDemo, oficinas:['ELE','INS','MEC'], nome:'LÍDER EXEMPLO', oficina:pcmDemo ? (of || 'TODAS') : 'INS', dk:dk, br:br(dk), hoje:dk, turnoAtual:'A', ocorrencias:o, pendencias:pend.map(function (p) { return Object.assign({ oficina:'INS' }, p); }),
         escalados:[{cracha:'1001',nome:'ELETRICISTA EXEMPLO',turno:'A'},{cracha:'1002',nome:'OUTRO ELETRICISTA',turno:'A'},{cracha:'1006',nome:'TERCEIRO TURNO A',turno:'A'},{cracha:'1003',nome:'ELETRICISTA TURNO B',turno:'B'},{cracha:'1004',nome:'ELETRICISTA TURNO C',turno:'C'}],
         enviado:{A:true,B:false,C:false,D:false}, janelas:{A:'07:00 às 15:35',B:'15:20 às 23:40',C:'23:40 às 07:00',D:'07:00 às 16:48'}, logoutMin:5 }; },
     adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
