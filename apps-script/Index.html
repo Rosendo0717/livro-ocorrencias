@@ -314,7 +314,7 @@
     <div id="boxCiclo" class="oculto"><label>CICLO PERSONALIZADO (um item por dia: A, B, C, D=6x1 ou F=folga)</label><input id="pfCiclo" placeholder="EX.: A,A,A,A,A,A,F"></div>
     <div class="linha">
       <div><label>1º DIA DE SERVIÇO (1º dia de trabalho após uma folga)</label><input type="date" id="pfInicio"></div>
-      <div><label>PERFIL</label><select id="pfPerfil"><option value="COLABORADOR">Colaborador</option><option value="LIDER">Líder</option><option value="PCM">PCM (todas as oficinas)</option></select></div>
+      <div><label>PERFIL</label><select id="pfPerfil" onchange="var o=document.getElementById('pfOficina').options[0];o.textContent=this.value==='COLABORADOR'?'Escolha a oficina...':'Sem oficina (vê todas)'"><option value="COLABORADOR">Colaborador</option><option value="LIDER">Líder</option><option value="PCM">PCM (todas as oficinas)</option></select></div>
       <div><label>SITUAÇÃO</label><select id="pfAtivo"><option value="SIM">Ativo</option><option value="NAO">Inativo</option></select></div>
     </div>
     <div class="ctx" id="pfPrevia" style="margin-top:10px"></div>
@@ -1096,7 +1096,7 @@ function abrirPessoa(cracha) {
   document.getElementById('pfNome').value = p ? p.nome : '';
   var ofs = (ADM.dados.oficinasCad || []).filter(function (o) { return o.ativa || (p && o.sigla === p.oficina); }).map(function (o) { return o.sigla; });
   if (p && p.oficina && ofs.indexOf(p.oficina) < 0) ofs.push(p.oficina);
-  document.getElementById('pfOficina').innerHTML = '<option value="">Escolha a oficina...</option>' + ofs.map(function (x) {
+  document.getElementById('pfOficina').innerHTML = '<option value="">' + (p && p.lider ? 'Sem oficina (vê todas)' : 'Escolha a oficina...') + '</option>' + ofs.map(function (x) {
     var d = (ADM.dados.oficinasCad || []).filter(function (o) { return o.sigla === x; })[0];
     return '<option value="' + esc(x) + '">' + esc(x) + (d && d.descricao ? ' – ' + esc(d.descricao) : '') + '</option>'; }).join('');
   document.getElementById('pfOficina').value = p ? (p.oficina || '') : '';
@@ -1133,7 +1133,8 @@ document.getElementById('pfCiclo').addEventListener('input', previaCiclo);
 document.getElementById('pfCracha').addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); });
 
 function salvarPessoa() {
-  if (!document.getElementById('pfOficina').value) { document.getElementById('pfErro').textContent = 'Escolha a oficina. Se ela não existir, cadastre em "Oficinas" acima da lista.'; return; }
+  var perfilSel = document.getElementById('pfPerfil').value;
+  if (!document.getElementById('pfOficina').value && perfilSel === 'COLABORADOR') { document.getElementById('pfErro').textContent = 'Escolha a oficina. Se ela não existir, cadastre em "Oficinas" acima da lista.'; return; }
   var p = { cracha: val('pfCracha'), nome: val('pfNome'), oficina: document.getElementById('pfOficina').value, ciclo: cicloAtual(), inicio: val('pfInicio'), ativo: document.getElementById('pfAtivo').value === 'SIM',
     lider: document.getElementById('pfPerfil').value !== 'COLABORADOR', pcm: document.getElementById('pfPerfil').value === 'PCM' };
   if (!p.ciclo && !p.lider) { document.getElementById('pfErro').textContent = 'Só líder ou PCM pode ficar sem escala.'; return; }
