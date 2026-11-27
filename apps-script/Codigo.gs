@@ -11,7 +11,7 @@
  *   Envios      -> registro dos relatórios já enviados
  *****************************************************************/
 
-const ABA = { CAD: 'Cadastro', EXC: 'Excecoes', OCO: 'Ocorrencias', PEN: 'Pendencias', CFG: 'Config', ENV: 'Envios' };
+const ABA = { CAD: 'Cadastro', EXC: 'Excecoes', OCO: 'Ocorrencias', PEN: 'Pendencias', CFG: 'Config', ENV: 'Envios', OFI: 'Oficinas' };
 const TZ = 'America/Sao_Paulo';
 const UTC_OFFSET_H = 3;            // Brasil sem horário de verão: hora local = UTC-3
 const TURNOS = ['A', 'B', 'C', 'D'];   // D = 6x1 (tem relatório e horário de envio próprios)
@@ -29,6 +29,7 @@ const CAB = {
                 'Ordem/Nota', 'Situação', 'Status original', 'ID ocorrência origem', 'Finalizada em',
                 'Turno finalização', 'Crachá finalizador', 'Nome finalizador', 'O que foi feito', 'Registrado em', 'Equipamento/TAG', 'Oficina'],
   Config:      ['Parâmetro', 'Valor', 'Observação'],
+  Oficinas:    ['Sigla', 'Descrição', 'Ativa'],
   Envios:      ['Data turno', 'Turno', 'Enviado em', 'Destinatários', 'Ocorrências', 'Modo', 'Oficina']
 };
 
@@ -116,6 +117,14 @@ function setup() {
   const exc = ss.getSheetByName(ABA.EXC);
   exc.getRange('D2:D1000').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(['A', 'B', 'C', 'D', 'F']).build());
+
+  // Oficinas: na primeira vez, cadastra as que já aparecem no Cadastro
+  const ofi = ss.getSheetByName(ABA.OFI);
+  if (ofi.getLastRow() < 2) {
+    const ja = {};
+    pessoas_().forEach(function (x) { if (x.oficina) ja[normOf_(x.oficina)] = 1; });
+    Object.keys(ja).sort().forEach(function (o) { ofi.appendRow([o, '', 'SIM']); });
+  }
 
   const padrao = ss.getSheetByName('Página1') || ss.getSheetByName('Sheet1');
   if (padrao && ss.getSheets().length > 1) ss.deleteSheet(padrao);
@@ -889,9 +898,15 @@ function adminDados(token) {
     return { chave: String(r[0]), valor: /^(TURNO_|ENVIO_[ABCD]$)/.test(String(r[0])) ? paraHm(r[1]) : String(r[1]), obs: String(r[2] || '') };
   });
   const ofs = {};
-  pessoas.forEach(function (p) { if (p.ativo) ofs[normOf_(p.oficina)] = 1; });
+  oficinasCad_().forEach(function (o) { ofs[o.sigla] = 1; });
+  pessoas.forEach(function (p) { if (p.ativo && p.oficina) ofs[normOf_(p.oficina)] = 1; });
   const oficinas = Object.keys(ofs).sort().map(function (o) { return { nome: o, chave: chaveOf_(o) }; });
-  return { pessoas: pessoas, excecoes: exc.sort(function (a, b) { return a.ini < b.ini ? 1 : -1; }), config: cfgRows, oficinas: oficinas };
+  const ofCad = oficinasCad_().map(function (o) {
+    o.qtd = pessoas.filter(function (p) { return normOf_(p.oficina) === o.sigla; }).length;
+    o.ativos = pessoas.filter(function (p) { return p.ativo && normOf_(p.oficina) === o.sigla; }).length;
+    return o;
+  });
+  return { pessoas: pessoas, excecoes: exc.sort(function (a, b) { return a.ini < b.ini ? 1 : -1; }), config: cfgRows, oficinas: oficinas, oficinasCad: ofCad };
 }
 
 function adminSalvarPessoa(token, p, crachaOriginal) {
@@ -1117,7 +1132,8 @@ function liderPainel(cracha, dkPedido, ofPedida) {
   const dk = paraDk(dkPedido) || (opcoes[TURNOS.filter(function (t) { return opcoes[t].atual; })[0] || 'A'] || {}).dk || now.dk;
   const of = p.pcm ? (ofPedida ? normOf_(ofPedida) : null) : (p.oficina ? normOf_(p.oficina) : null);
   const ofsSet = {};
-  pess.forEach(function (x) { if (x.ativo && !x.lider) ofsSet[normOf_(x.oficina)] = 1; });
+  pess.forEach(function (x) { if (x.ativo && !x.lider && x.oficina) ofsSet[normOf_(x.oficina)] = 1; });
+  oficinasCad_().forEach(function (o) { if (o.ativa) ofsSet[o.sigla] = 1; });
   const daOf = function (o) { return !of || o === of; };
 
   const ocos = ler_(ABA.OCO).rows.map(ocoParaObj_)
@@ -1187,4 +1203,91 @@ function limparHistorico() {
     props.deleteProperty('ULTIMA_FALHA'); props.deleteProperty('FALHA_AVISADA');
   } finally { lock.releaseLock(); }
   ui.alert('Histórico apagado.\n\nCópia de segurança: "' + backup.getName() + '" no seu Google Drive.');
+}
+
+
+/*****************************************************************
+ * CADASTRO DE OFICINAS (Administrador > Funcionários)
+ *****************************************************************/
+
+function oficinasCad_() {
+  const sh = ss_().getSheetByName(ABA.OFI);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 3).getValues().filter(function (r) { return String(r[0]).trim(); }).map(function (r, i) {
+    return { sigla: normOf_(r[0]), descricao: String(r[1] || '').trim(), ativa: String(r[2]).trim().toUpperCase() !== 'NAO' };
+  }).sort(function (a, b) { return a.sigla < b.sigla ? -1 : 1; });
+}
+
+function abaOficinas_() {
+  let sh = ss_().getSheetByName(ABA.OFI);
+  if (!sh) {
+    sh = ss_().insertSheet(ABA.OFI);
+    sh.getRange(1, 1, 1, 3).setValues([CAB.Oficinas]).setFontWeight('bold').setBackground('#0032A0').setFontColor('#FFFFFF');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+// Troca o nome da oficina em uma coluna de uma aba (para renomear a sigla)
+function trocarOficinaNaAba_(nomeAba, coluna, de, para) {
+  const sh = ss_().getSheetByName(nomeAba);
+  if (!sh || sh.getLastRow() < 2 || CAB[nomeAba].indexOf(coluna) < 0) return;
+  const c = CAB[nomeAba].indexOf(coluna) + 1;
+  const rg = sh.getRange(2, c, sh.getLastRow() - 1, 1);
+  const v = rg.getValues();
+  let mudou = false;
+  v.forEach(function (r) { if (String(r[0]).trim() && normOf_(r[0]) === de) { r[0] = para; mudou = true; } });
+  if (mudou) rg.setValues(v);
+}
+
+// siglaOriginal vazia = nova oficina
+function adminSalvarOficina(token, o, siglaOriginal) {
+  exigirAdmin_(token);
+  const sigla = String(o.sigla || '').trim().toUpperCase();
+  if (sigla.length < 2) throw new Error('Informe a sigla da oficina (ex.: ELE, INS, MEC).');
+  if (sigla === SEM_OFICINA) throw new Error('Escolha outra sigla.');
+  const desc = String(o.descricao || '').trim().toUpperCase();
+  const orig = siglaOriginal ? normOf_(siglaOriginal) : '';
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const sh = abaOficinas_();
+    const n = sh.getLastRow() - 1;
+    const siglas = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(function (r) { return String(r[0]).trim() ? normOf_(r[0]) : ''; }) : [];
+    const iOrig = orig ? siglas.indexOf(orig) : -1;
+    const iDup = siglas.indexOf(sigla);
+    if (iDup >= 0 && iDup !== iOrig) throw new Error('Já existe a oficina ' + sigla + '.');
+    const linha = [sigla, desc, o.ativa === false ? 'NAO' : 'SIM'];
+    if (iOrig >= 0) sh.getRange(iOrig + 2, 1, 1, 3).setValues([linha]);
+    else if (orig) throw new Error('Oficina ' + orig + ' não encontrada.');
+    else sh.appendRow(linha);
+    // Renomeou a sigla: leva junto funcionários, lançamentos, pendências, envios e e-mails dos líderes
+    if (orig && orig !== sigla) {
+      trocarOficinaNaAba_(ABA.CAD, 'Oficina', orig, sigla);
+      trocarOficinaNaAba_(ABA.OCO, 'Oficina', orig, sigla);
+      trocarOficinaNaAba_(ABA.PEN, 'Oficina', orig, sigla);
+      trocarOficinaNaAba_(ABA.ENV, 'Oficina', orig, sigla);
+      const cfg = aba_(ABA.CFG), nc = cfg.getLastRow() - 1;
+      if (nc > 0) {
+        const chaves = cfg.getRange(2, 1, nc, 1).getValues();
+        chaves.forEach(function (r, i) { if (String(r[0]).trim() === chaveOf_(orig)) cfg.getRange(i + 2, 1).setValue(chaveOf_(sigla)); });
+      }
+    }
+  } finally { lock.releaseLock(); }
+  return adminDados(token);
+}
+
+function adminExcluirOficina(token, sigla) {
+  exigirAdmin_(token);
+  sigla = normOf_(sigla);
+  const usando = pessoas_().filter(function (p) { return normOf_(p.oficina) === sigla; });
+  if (usando.length) throw new Error('A oficina ' + sigla + ' ainda tem ' + usando.length + ' funcionário(s): ' +
+    usando.slice(0, 5).map(function (p) { return p.nome; }).join(', ') + (usando.length > 5 ? '...' : '') +
+    '. Mude a oficina deles antes, ou marque a oficina como inativa.');
+  const sh = abaOficinas_();
+  const n = sh.getLastRow() - 1;
+  const siglas = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(function (r) { return normOf_(r[0]); }) : [];
+  const i = siglas.indexOf(sigla);
+  if (i < 0) throw new Error('Oficina não encontrada.');
+  sh.deleteRow(i + 2);
+  return adminDados(token);
 }

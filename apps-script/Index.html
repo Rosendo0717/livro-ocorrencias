@@ -300,7 +300,7 @@
       <div><label>NOME</label><input id="pfNome"></div>
     </div>
     <label>OFICINA</label>
-    <input id="pfOficina" list="listaOfic" autocomplete="off" placeholder="EX.: ELÉTRICA, INSTRUMENTAÇÃO"><datalist id="listaOfic"></datalist>
+    <select id="pfOficina"></select>
     <label>ESCALA</label>
     <select id="pfPreset" onchange="presetCiclo()">
       <option value="A,A,A,A,A,F">Turno A – 5x1</option>
@@ -320,6 +320,20 @@
     <div class="ctx" id="pfPrevia" style="margin-top:10px"></div>
     <div class="erro" id="pfErro"></div>
     <div class="botoes"><button class="b-sec" onclick="fechar('mPessoa')">CANCELAR</button><button class="b-pri" onclick="salvarPessoa()">SALVAR</button></div>
+  </div>
+</div>
+
+<div class="fundoModal oculto" id="mOfic">
+  <div class="modal" style="width:520px">
+    <h2 id="ofTitulo">Oficina</h2>
+    <div class="linha">
+      <div style="flex:0 0 150px"><label>SIGLA</label><input id="ofSigla" placeholder="EX.: INS"></div>
+      <div><label>DESCRIÇÃO</label><input id="ofDesc" placeholder="EX.: INSTRUMENTAÇÃO"></div>
+    </div>
+    <label>SITUAÇÃO</label><select id="ofAtiva"><option value="SIM">Ativa</option><option value="NAO">Inativa (não aparece para novos cadastros)</option></select>
+    <div class="ctx" id="ofAviso" style="margin-top:10px"></div>
+    <div class="erro" id="ofErro"></div>
+    <div class="botoes"><button class="b-del oculto" id="ofDel" onclick="excluirOficina()">EXCLUIR</button><button class="b-sec" onclick="fechar('mOfic')">CANCELAR</button><button class="b-pri" onclick="salvarOficina()">SALVAR</button></div>
   </div>
 </div>
 
@@ -472,7 +486,7 @@ function sair() {
   if (ADM.token) { try { api('adminSair', [ADM.token], function () {}); } catch (e) {} }
   ADM = { token:null };
   document.getElementById('telaAdmin').classList.add('oculto');
-  ['mSenha','mPessoa','mExc','mMotivo','mConf','mApos'].forEach(fechar); PEND_LOGIN = null;
+  ['mSenha','mPessoa','mExc','mMotivo','mConf','mApos','mOfic'].forEach(fechar); PEND_LOGIN = null;
   S = { cracha:'', user:null, turno:'', dk:'', dados:null, aba:'minhas', editId:null, status:'', pendId:null };
   ['mOco','mFin'].forEach(fechar);
   document.getElementById('telaPrincipal').classList.add('oculto');
@@ -1014,7 +1028,8 @@ function renderFunc(filtro) {
   var h = '<div class="filtros"><div style="flex:1"><label>BUSCAR</label><input id="fBusca" style="width:100%" placeholder="Nome ou crachá" value="' + esc(filtro || '') +
     '" oninput="renderFunc(this.value);var e=document.getElementById(\'fBusca\');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>' +
     '<button class="bt verde" onclick="abrirPessoa()">+ NOVO FUNCIONÁRIO</button></div>';
-  h += '<div class="resumo">' + ADM.dados.pessoas.filter(function (p) { return p.ativo; }).length + ' ativos · ' + ADM.dados.pessoas.length + ' cadastrados</div>';
+  h += oficinasHtml();
+  h += '<div class="secao">Funcionários</div><div class="resumo">' + ADM.dados.pessoas.filter(function (p) { return p.ativo; }).length + ' ativos · ' + ADM.dados.pessoas.length + ' cadastrados</div>';
   h += '<table class="tabela"><tr><th>CRACHÁ</th><th>NOME</th><th>OFICINA</th><th>ESCALA</th><th>1º DIA DE SERVIÇO</th><th>SITUAÇÃO</th><th></th></tr>';
   lista.forEach(function (p) {
     h += '<tr class="' + (p.ativo ? '' : 'inativo') + '"><td>' + esc(p.cracha) + '</td><td><b>' + esc(p.nome) + (p.lider ? ' <span class="pill" style="background:var(--azul);color:#fff">' + (p.pcm ? 'PCM' : 'LÍDER') + '</span>' : '') + '</b></td><td>' + esc(p.oficina || '-') + '</td><td>' + esc(p.ciclo ? nomeCiclo(p.ciclo) : '—') +
@@ -1025,15 +1040,54 @@ function renderFunc(filtro) {
   c.innerHTML = h + '</table>';
 }
 
+/* ----- Oficinas ----- */
+function oficinasHtml() {
+  var lista = ADM.dados.oficinasCad || [];
+  var h = '<div class="secao" style="display:flex;align-items:center;gap:10px;margin-top:4px">Oficinas <button class="bt verde mini" onclick="abrirOficina()">+ ADICIONAR OFICINA</button></div>';
+  if (!lista.length) return h + '<div class="vazio" style="padding:12px">Nenhuma oficina cadastrada.</div>';
+  return h + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">' + lista.map(function (o) {
+    return '<div style="border:1px solid var(--borda);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:10px;' + (o.ativa ? '' : 'opacity:.55') + '">' +
+      '<div><b>' + esc(o.sigla) + '</b>' + (o.descricao ? ' <span style="color:var(--suave);font-size:13px">' + esc(o.descricao) + '</span>' : '') +
+      '<div style="font-size:12px;color:var(--suave)">' + o.ativos + ' ativo(s)' + (o.ativa ? '' : ' · inativa') + '</div></div>' +
+      '<button class="bt sec mini" onclick="abrirOficina(\'' + esc(o.sigla) + '\')">EDITAR</button></div>';
+  }).join('') + '</div>';
+}
+function abrirOficina(sigla) {
+  var o = sigla ? ADM.dados.oficinasCad.filter(function (x) { return x.sigla === sigla; })[0] : null;
+  ADM.ofOrig = o ? o.sigla : null;
+  document.getElementById('ofTitulo').textContent = o ? 'Editar oficina' : 'Nova oficina';
+  document.getElementById('ofSigla').value = o ? o.sigla : '';
+  document.getElementById('ofDesc').value = o ? o.descricao : '';
+  document.getElementById('ofAtiva').value = o && !o.ativa ? 'NAO' : 'SIM';
+  document.getElementById('ofErro').textContent = '';
+  document.getElementById('ofAviso').textContent = o ? 'Se mudar a sigla, os funcionários, lançamentos e e-mails dos líderes desta oficina passam para a sigla nova.' : '';
+  var del = document.getElementById('ofDel'); del.classList.toggle('oculto', !o); del.textContent = 'EXCLUIR';
+  document.getElementById('mOfic').classList.remove('oculto');
+}
+function salvarOficina() {
+  var o = { sigla: val('ofSigla').toUpperCase(), descricao: val('ofDesc'), ativa: document.getElementById('ofAtiva').value === 'SIM' };
+  erroAtual = function (m) { document.getElementById('ofErro').textContent = m; };
+  api('adminSalvarOficina', [ADM.token, o, ADM.ofOrig], function (d) { ADM.dados = d; fechar('mOfic'); renderFunc(); toast('Oficina salva'); });
+}
+function excluirOficina() {
+  var b = document.getElementById('ofDel');
+  if (b.textContent !== 'CONFIRMAR EXCLUSÃO') { b.textContent = 'CONFIRMAR EXCLUSÃO'; return; }
+  erroAtual = function (m) { document.getElementById('ofErro').textContent = m; b.textContent = 'EXCLUIR'; };
+  api('adminExcluirOficina', [ADM.token, ADM.ofOrig], function (d) { ADM.dados = d; fechar('mOfic'); renderFunc(); toast('Oficina excluída'); });
+}
+
 function abrirPessoa(cracha) {
   var p = cracha ? ADM.dados.pessoas.filter(function (x) { return x.cracha === cracha; })[0] : null;
   ADM.pessoaOrig = p ? p.cracha : null;
   document.getElementById('pfTitulo').textContent = p ? 'Editar funcionário' : 'Novo funcionário';
   document.getElementById('pfCracha').value = p ? p.cracha : '';
   document.getElementById('pfNome').value = p ? p.nome : '';
+  var ofs = (ADM.dados.oficinasCad || []).filter(function (o) { return o.ativa || (p && o.sigla === p.oficina); }).map(function (o) { return o.sigla; });
+  if (p && p.oficina && ofs.indexOf(p.oficina) < 0) ofs.push(p.oficina);
+  document.getElementById('pfOficina').innerHTML = '<option value="">Escolha a oficina...</option>' + ofs.map(function (x) {
+    var d = (ADM.dados.oficinasCad || []).filter(function (o) { return o.sigla === x; })[0];
+    return '<option value="' + esc(x) + '">' + esc(x) + (d && d.descricao ? ' – ' + esc(d.descricao) : '') + '</option>'; }).join('');
   document.getElementById('pfOficina').value = p ? (p.oficina || '') : '';
-  var ofs = {}; ADM.dados.pessoas.forEach(function (x) { if (x.oficina) ofs[x.oficina] = 1; });
-  document.getElementById('listaOfic').innerHTML = Object.keys(ofs).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('');
   var preset = document.getElementById('pfPreset');
   var conhecido = p && Array.prototype.some.call(preset.options, function (o) { return o.value && o.value === p.ciclo; });
   preset.value = p ? (conhecido ? p.ciclo : '') : 'A,A,A,A,A,F';
@@ -1067,7 +1121,8 @@ document.getElementById('pfCiclo').addEventListener('input', previaCiclo);
 document.getElementById('pfCracha').addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); });
 
 function salvarPessoa() {
-  var p = { cracha: val('pfCracha'), nome: val('pfNome'), oficina: val('pfOficina').toUpperCase(), ciclo: cicloAtual(), inicio: val('pfInicio'), ativo: document.getElementById('pfAtivo').value === 'SIM',
+  if (!document.getElementById('pfOficina').value) { document.getElementById('pfErro').textContent = 'Escolha a oficina. Se ela não existir, cadastre em "Oficinas" acima da lista.'; return; }
+  var p = { cracha: val('pfCracha'), nome: val('pfNome'), oficina: document.getElementById('pfOficina').value, ciclo: cicloAtual(), inicio: val('pfInicio'), ativo: document.getElementById('pfAtivo').value === 'SIM',
     lider: document.getElementById('pfPerfil').value !== 'COLABORADOR', pcm: document.getElementById('pfPerfil').value === 'PCM' };
   if (!p.ciclo && !p.lider) { document.getElementById('pfErro').textContent = 'Só líder ou PCM pode ficar sem escala.'; return; }
   erroAtual = function (m) { document.getElementById('pfErro').textContent = m; };
@@ -1256,7 +1311,8 @@ var DEMO = (function () {
     { cracha:'1005', nome:'FOLGUISTA EXEMPLO', ciclo:'B,B,C,C,F,F', inicio:dk, ativo:true },
     { cracha:'1006', nome:'TERCEIRO TURNO A', ciclo:'A,A,A,A,A,F', inicio:dk, ativo:false }];
   var excs = [{ linha:2, ini:dk, fim:dk, cracha:'1003', nome:'ELETRICISTA TURNO B', turno:'F', motivo:'ATESTADO' }];
-  function dados() { return { pessoas:pess, excecoes:excs, oficinas:[{nome:'ELE',chave:'EMAILS_ELE'},{nome:'INS',chave:'EMAILS_INS'}], config:[{chave:'TURNO_A_INICIO',valor:'07:00'},{chave:'TURNO_A_FIM',valor:'15:35'},{chave:'TURNO_B_INICIO',valor:'15:20'},
+  var ofCad = [{sigla:'ELE',descricao:'ELÉTRICA',ativa:true,ativos:2,qtd:2},{sigla:'INS',descricao:'INSTRUMENTAÇÃO',ativa:true,ativos:1,qtd:1},{sigla:'MEC',descricao:'MECÂNICA',ativa:true,ativos:0,qtd:0}];
+  function dados() { return { oficinasCad:ofCad, pessoas:pess, excecoes:excs, oficinas:[{nome:'ELE',chave:'EMAILS_ELE'},{nome:'INS',chave:'EMAILS_INS'}], config:[{chave:'TURNO_A_INICIO',valor:'07:00'},{chave:'TURNO_A_FIM',valor:'15:35'},{chave:'TURNO_B_INICIO',valor:'15:20'},
     {chave:'TURNO_B_FIM',valor:'23:40'},{chave:'TURNO_C_INICIO',valor:'23:40'},{chave:'TURNO_C_FIM',valor:'07:00'},{chave:'ENVIO_A',valor:'15:50'},{chave:'TURNO_D_INICIO',valor:'07:00'},{chave:'TURNO_D_FIM',valor:'16:48'},{chave:'ENVIO_D',valor:'17:00'},{chave:'ENVIO_B',valor:'23:50'},{chave:'ENVIO_C',valor:'07:10'},
     {chave:'EMAILS_LIDERES',valor:'lider@empresa.com'},{chave:'ENVIO_ATIVO',valor:'SIM'},{chave:'LOGOUT_MIN',valor:'5'}] }; }
   Object.assign(api, {
@@ -1269,6 +1325,8 @@ var DEMO = (function () {
         enviado:{A:true,B:false,C:false,D:false}, janelas:{A:'07:00 às 15:35',B:'15:20 às 23:40',C:'23:40 às 07:00',D:'07:00 às 16:48'}, logoutMin:5 }; },
     adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
     adminSair: function () { return true; },
+    adminSalvarOficina: function (t, o, orig) { o.ativos = 0; ofCad = ofCad.filter(function (x) { return x.sigla !== orig; }); ofCad.push(o); return dados(); },
+    adminExcluirOficina: function (t, s) { var x = ofCad.filter(function (o) { return o.sigla === s; })[0]; if (x && x.ativos) throw new Error('A oficina ' + s + ' ainda tem funcionários.'); ofCad = ofCad.filter(function (o) { return o.sigla !== s; }); return dados(); },
     adminDados: dados,
     adminLancamentos: function () { var p = pacote(); p.ocorrencias.forEach(function (o, i) { o.oficina = i % 2 ? 'INS' : 'ELE'; }); p.pendencias.forEach(function (x) { x.oficina = 'INS'; });
       p.escalados = [{cracha:'1001',nome:'ELETRICISTA EXEMPLO',oficina:'ELE'},{cracha:'1002',nome:'OUTRO ELETRICISTA',oficina:'INS'},{cracha:'1006',nome:'TERCEIRO TURNO A',oficina:'ELE'}]; p.enviadoOf = {ELE:true, INS:false}; return p; },
