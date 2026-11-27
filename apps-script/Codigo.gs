@@ -260,11 +260,13 @@ function pessoas_() {
       ciclo: String(r[2]).toUpperCase().split(/[,;\s]+/).filter(String),
       inicio: paraDk(r[3]),
       ativo: String(r[4]).trim().toUpperCase() !== 'NAO', oficina: String(r[5] || '').trim().toUpperCase(),
-      lider: ehLider_(r[6])
+      lider: ehLider_(r[6]), pcm: ehPcm_(r[6])
     };
   });
 }
-function ehLider_(v) { return /^L[IÍ]DER$/.test(String(v || '').trim().toUpperCase()); }
+// LÍDER e PCM entram na tela do líder; PCM vê todas as oficinas
+function ehPcm_(v) { return String(v || '').trim().toUpperCase() === 'PCM'; }
+function ehLider_(v) { return /^L[IÍ]DER$/.test(String(v || '').trim().toUpperCase()) || ehPcm_(v); }
 function excecoes_() {
   return ler_(ABA.EXC).rows.filter(function (r) { return r[0] && r[2]; }).map(function (r) {
     const ini = paraDk(r[0]);
@@ -339,7 +341,7 @@ function identificar(crachaDigitado) {
     foraEscala = true;
   }
   return {
-    cracha: p.cracha, nome: p.nome, oficina: p.oficina, lider: p.lider,
+    cracha: p.cracha, nome: p.nome, oficina: p.oficina, lider: p.lider, pcm: p.pcm,
     turno: sug.turno, dk: sug.dk, br: dkToBr(sug.dk),
     escalaHoje: turnoEscala(p, now.dk, excs),
     escalaPorDia: [-1, 0, 1].reduce(function (m, k) { const d = dkAdd(now.dk, k); m[d] = turnoEscala(p, d, excs); return m; }, {}),
@@ -883,7 +885,7 @@ function adminDados(token) {
   const cad = ler_(ABA.CAD).rows;
   const pessoas = cad.filter(function (r) { return String(r[0]).trim() !== ''; }).map(function (r) {
     return { cracha: normCracha(r[0]), nome: String(r[1]).toUpperCase(), ciclo: String(r[2]).toUpperCase().replace(/\s/g, ''),
-      inicio: paraDk(r[3]), ativo: String(r[4]).trim().toUpperCase() !== 'NAO', oficina: String(r[5] || '').trim().toUpperCase(), lider: ehLider_(r[6]) };
+      inicio: paraDk(r[3]), ativo: String(r[4]).trim().toUpperCase() !== 'NAO', oficina: String(r[5] || '').trim().toUpperCase(), lider: ehLider_(r[6]), pcm: ehPcm_(r[6]) };
   }).sort(function (a, b) { return a.nome < b.nome ? -1 : 1; });
   const exc = ler_(ABA.EXC).rows.map(function (r, i) {
     const ini = paraDk(r[0]);
@@ -907,14 +909,14 @@ function adminSalvarPessoa(token, p, crachaOriginal) {
   if (!/^\d+$/.test(cracha)) throw new Error('Crachá deve ter só números.');
   const nome = String(p.nome || '').trim().toUpperCase();
   if (nome.length < 3) throw new Error('Informe o nome.');
-  const lider = p.lider === true;
+  const pcm = p.pcm === true, lider = p.lider === true || pcm;
   const ciclo = String(p.ciclo || '').toUpperCase().split(/[,;\s]+/).filter(String);
   if ((!ciclo.length && !lider) || ciclo.some(function (c) { return ['A', 'B', 'C', 'D', 'F'].indexOf(c) < 0; }))
     throw new Error('Ciclo inválido. Use só A, B, C, D (6x1) ou F separados por vírgula.');
   const inicio = paraDk(p.inicio);
   if (!inicio && ciclo.length) throw new Error('Informe o 1º dia de serviço (primeiro dia de trabalho depois de uma folga).');
   const linhaNova = [cracha, nome, ciclo.join(','), inicio ? dkToBr(inicio) : '', p.ativo === false ? 'NAO' : 'SIM', String(p.oficina || '').trim().toUpperCase(),
-    lider ? 'LÍDER' : 'COLABORADOR'];
+    pcm ? 'PCM' : lider ? 'LÍDER' : 'COLABORADOR'];
 
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
@@ -1114,14 +1116,17 @@ function adminTrocarSenha(token, atual, nova) {
  *****************************************************************/
 
 // Dados de um dia (todos os turnos) da oficina do líder. Líder sem oficina vê todas.
-function liderPainel(cracha, dkPedido) {
+// ofPedida: só para o PCM (vazio = todas as oficinas)
+function liderPainel(cracha, dkPedido, ofPedida) {
   cracha = normCracha(cracha);
   const p = pessoas_().filter(function (x) { return x.cracha === cracha; })[0];
   if (!p || !p.ativo || !p.lider) throw new Error('Acesso restrito aos líderes.');
   const now = agora(), cfg = config_(), mapa = mapaOficinas_(), excs = excecoes_(), pess = pessoas_();
   const opcoes = opcoesTurno_(now, cfg);
   const dk = paraDk(dkPedido) || (opcoes[TURNOS.filter(function (t) { return opcoes[t].atual; })[0] || 'A'] || {}).dk || now.dk;
-  const of = p.oficina ? normOf_(p.oficina) : null;
+  const of = p.pcm ? (ofPedida ? normOf_(ofPedida) : null) : (p.oficina ? normOf_(p.oficina) : null);
+  const ofsSet = {};
+  pess.forEach(function (x) { if (x.ativo && !x.lider) ofsSet[normOf_(x.oficina)] = 1; });
   const daOf = function (o) { return !of || o === of; };
 
   const ocos = ler_(ABA.OCO).rows.map(ocoParaObj_)
@@ -1147,7 +1152,7 @@ function liderPainel(cracha, dkPedido) {
   }).sort(function (a, b) { return b.dias - a.dias; });
 
   const apont = resumoApontamentoOficina_(of, dk);
-  return { apontamento: apont, nome: p.nome, oficina: of || 'TODAS', dk: dk, br: dkToBr(dk), hoje: now.dk,
+  return { pcm: p.pcm, oficinas: Object.keys(ofsSet).sort(), apontamento: apont, nome: p.nome, oficina: of || 'TODAS', dk: dk, br: dkToBr(dk), hoje: now.dk,
     turnoAtual: TURNOS.filter(function (t) { return opcoes[t].atual; })[0] || 'A',
     ocorrencias: ocos, escalados: escalados, pendencias: pend, enviado: enviado, janelas: janelas, logoutMin: cfg.logout };
 }
@@ -1278,11 +1283,11 @@ function resumoApontamentoOficina_(of, dk) {
   const doMes = todas.filter(function (l) { return l.dk >= per.de && l.dk <= per.ate; });
   const ultimo = doMes.reduce(function (m, l) { return l.dk > m && l.situacao ? l.dk : m; }, '');
   const pess = {};
-  doMes.forEach(function (l) { (pess[l.cracha] = pess[l.cracha] || { cracha: l.cracha, nome: l.nome, linhas: [] }).linhas.push(l); });
+  doMes.forEach(function (l) { (pess[l.cracha] = pess[l.cracha] || { cracha: l.cracha, nome: l.nome, centro: l.centro, linhas: [] }).linhas.push(l); });
   const pessoas = Object.keys(pess).map(function (k) {
     const p = pess[k], r = aptResumo_(p.linhas);
     const ult = p.linhas.filter(function (l) { return l.dk === ultimo; })[0];
-    r.cracha = p.cracha; r.nome = p.nome;
+    r.cracha = p.cracha; r.nome = p.nome; r.centro = p.centro;
     r.ultimo = ult ? { pct: ult.pct, situacao: ult.situacao } : null;
     return r;
   }).sort(function (a, b) { return (a.iap === null ? 9 : a.iap) - (b.iap === null ? 9 : b.iap); });
