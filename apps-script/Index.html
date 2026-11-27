@@ -319,7 +319,7 @@
     </div>
     <div class="ctx" id="pfPrevia" style="margin-top:10px"></div>
     <div class="erro" id="pfErro"></div>
-    <div class="botoes"><button class="b-sec" onclick="fechar('mPessoa')">CANCELAR</button><button class="b-pri" onclick="salvarPessoa()">SALVAR</button></div>
+    <div class="botoes"><button class="b-del oculto" id="pfDel" onclick="excluirPessoa()">EXCLUIR</button><button class="b-sec" onclick="fechar('mPessoa')">CANCELAR</button><button class="b-pri" onclick="salvarPessoa()">SALVAR</button></div>
   </div>
 </div>
 
@@ -1040,6 +1040,17 @@ function renderFunc(filtro) {
   c.innerHTML = h + '</table>';
 }
 
+function excluirPessoa() {
+  var b = document.getElementById('pfDel');
+  if (b.textContent !== 'CONFIRMAR EXCLUSÃO') {
+    b.textContent = 'CONFIRMAR EXCLUSÃO';
+    document.getElementById('pfErro').textContent = 'Os lançamentos antigos dele continuam no histórico. Se a pessoa só se afastou, prefira Situação: Inativo.';
+    return;
+  }
+  erroAtual = function (m) { document.getElementById('pfErro').textContent = m; b.textContent = 'EXCLUIR'; };
+  api('adminExcluirPessoa', [ADM.token, ADM.pessoaOrig], function (d) { ADM.dados = d; fechar('mPessoa'); renderFunc(); toast('Funcionário excluído'); });
+}
+
 /* ----- Oficinas ----- */
 function oficinasHtml() {
   var lista = ADM.dados.oficinasCad || [];
@@ -1079,6 +1090,7 @@ function excluirOficina() {
 function abrirPessoa(cracha) {
   var p = cracha ? ADM.dados.pessoas.filter(function (x) { return x.cracha === cracha; })[0] : null;
   ADM.pessoaOrig = p ? p.cracha : null;
+  var pdel = document.getElementById('pfDel'); pdel.classList.toggle('oculto', !p); pdel.textContent = 'EXCLUIR';
   document.getElementById('pfTitulo').textContent = p ? 'Editar funcionário' : 'Novo funcionário';
   document.getElementById('pfCracha').value = p ? p.cracha : '';
   document.getElementById('pfNome').value = p ? p.nome : '';
@@ -1325,6 +1337,7 @@ var DEMO = (function () {
         enviado:{A:true,B:false,C:false,D:false}, janelas:{A:'07:00 às 15:35',B:'15:20 às 23:40',C:'23:40 às 07:00',D:'07:00 às 16:48'}, logoutMin:5 }; },
     adminLogin: function (s) { if (s !== 'demo123') throw new Error('Senha incorreta.'); return { token:'t', hoje:dk, logoutMin:5, opcoes:{ A:{dk:dk,atual:true}, B:{dk:dk}, C:{dk:dk}, D:{dk:dk} } }; },
     adminSair: function () { return true; },
+    adminExcluirPessoa: function (t, c) { pess = pess.filter(function (x) { return x.cracha !== c; }); return dados(); },
     adminSalvarOficina: function (t, o, orig) { o.ativos = 0; ofCad = ofCad.filter(function (x) { return x.sigla !== orig; }); ofCad.push(o); return dados(); },
     adminExcluirOficina: function (t, s) { var x = ofCad.filter(function (o) { return o.sigla === s; })[0]; if (x && x.ativos) throw new Error('A oficina ' + s + ' ainda tem funcionários.'); ofCad = ofCad.filter(function (o) { return o.sigla !== s; }); return dados(); },
     adminDados: dados,
