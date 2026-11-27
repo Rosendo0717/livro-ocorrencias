@@ -1403,3 +1403,20 @@ function adminExcluirOficina(token, sigla) {
   sh.deleteRow(i + 2);
   return adminDados(token);
 }
+
+
+// Exclui o funcionário do Cadastro. Lançamentos e pendências antigos dele continuam no histórico.
+function adminExcluirPessoa(token, cracha) {
+  exigirAdmin_(token);
+  cracha = normCracha(cracha);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const sh = aba_(ABA.CAD);
+    const n = sh.getLastRow() - 1;
+    const crachas = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(function (r) { return normCracha(r[0]); }) : [];
+    const i = crachas.indexOf(cracha);
+    if (i < 0) throw new Error('Funcionário não encontrado.');
+    sh.deleteRow(i + 2);
+  } finally { lock.releaseLock(); }
+  return adminDados(token);
+}
